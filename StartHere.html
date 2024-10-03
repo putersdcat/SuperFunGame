@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sausage Party 3 - Friend Zone</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        #info, #fpsCounter, #helpMenu, #messageBox, #pizzaPowerCounter, #sausageCounter, #DogeCoinCounter {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #info { top: 10px; right: 10px; display: none; }
+        #fpsCounter { top: 10px; left: 10px; display: none; }
+        #helpMenu {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+        #messageBox { bottom: 10px; right: 10px; }
+        #pizzaPowerCounter { bottom: 10px; left: 10px; }
+        #sausageCounter { bottom: 50px; left: 10px; }
+        #DogeCoinCounter { bottom: 90px; left: 10px; }
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info"></div>
+    <div id="fpsCounter"></div>
+    <div id="helpMenu">
+        <h3>Help Menu</h3>
+        <p>Use arrow keys to move the PizzaBox.</p>
+        <p>Press 'H' to toggle this help menu.</p>
+        <p>Press 'F' to toggle FPS counter.</p>
+        <p>Press 'I' to toggle info display.</p>
+        <p>Press 'Spacebar' to fire the HotDog Cannon.</p>
+        <p>Press 'S' to fire a larger Sausage.</p>
+    </div>
+    <div id="messageBox">Press 'H' for help</div>
+    <div id="pizzaPowerCounter">Pizza Power: 420</div>
+    <div id="sausageCounter">Sausages: 10</div>
+    <div id="DogeCoinCounter">DogeCoins: 0</div>
+    <div id="gameOverScreen">Game Over</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, PizzaBox, ground;
+        let obstacles = [];
+        let hotDogs = [];
+        let sausages = [];
+        let speed = 0.1;
+        let showFPS = false;
+        let showInfo = false;
+        let lastFPSUpdateTime = 0;
+        let lastFrameTime = performance.now();
+        let fpsCounter = document.getElementById('fpsCounter');
+        let info = document.getElementById('info');
+        let helpMenu = document.getElementById('helpMenu');
+        let messageBox = document.getElementById('messageBox');
+        let pizzaPowerCounter = document.getElementById('pizzaPowerCounter');
+        let sausageCounter = document.getElementById('sausageCounter');
+        let gameOverScreen = document.getElementById('gameOverScreen');
+        let pizzaPower = 420;
+        let sausageCount = 10;
+        let DogeCoins = 0;
+        const minX = -window.innerWidth / 2 / 100;
+        const maxX = window.innerWidth / 2 / 100;
+        const minY = 0.5;
+        const maxY = 2;
+
+        const wobbleSpeed = 0.05;
+        const wobbleAmplitude = 0.1;
+
+        window.addEventListener('resize', () => {
+            const newMinX = -window.innerWidth / 2 / 100;
+            const newMaxX = window.innerWidth / 2 / 100;
+            if (PizzaBox.position.x < newMinX) {
+                PizzaBox.position.x = newMinX;
+            } else if (PizzaBox.position.x > newMaxX) {
+                PizzaBox.position.x = newMaxX;
+            }
+            minX = newMinX;
+            maxX = newMaxX;
+        });
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // PizzaBox (Simple Pizza Box Shape)
+            let geometry = new THREE.BoxGeometry(1, 0.1, 1); // Main body (square shape)
+            let material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            PizzaBox = new THREE.Mesh(geometry, material);
+            PizzaBox.position.y = 1;
+            const pizzaSVG = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+                <rect width="100" height="100" fill="white" />
+                <circle cx="50" cy="50" r="50" fill="#f4a460" />
+                <circle cx="50" cy="50" r="43" fill="#FFD700" />
+                <circle cx="28" cy="32" r="7.2" fill="#b22222" />
+                <circle cx="72" cy="28" r="6.8" fill="#b22222" />
+                <circle cx="22" cy="68" r="7.1" fill="#b22222" />
+                <circle cx="78" cy="72" r="6.9" fill="#b22222" />
+                <circle cx="48" cy="18" r="7.3" fill="#b22222" />
+                <circle cx="52" cy="82" r="6.7" fill="#b22222" />
+                <circle cx="18" cy="52" r="7.2" fill="#b22222" />
+                <circle cx="82" cy="48" r="6.8" fill="#b22222" />
+                <circle cx="38" cy="62" r="7.1" fill="#b22222" />
+                <circle cx="62" cy="38" r="6.9" fill="#b22222" />
+                <circle cx="33" cy="43" r="7.3" fill="#b22222" />
+                <circle cx="67" cy="57" r="6.7" fill="#b22222" />
+            </svg>
+            `;
+            const pizzaBlob = new Blob([pizzaSVG], { type: 'image/svg+xml' });
+            const pizzaUrl = URL.createObjectURL(pizzaBlob);
+            const pizzaTexture = new THREE.TextureLoader().load(pizzaUrl);
+            pizzaTexture.wrapS = pizzaTexture.wrapT = THREE.RepeatWrapping;
+            pizzaTexture.repeat.set(1, 1);
+
+            const pizzaTopMaterial = new THREE.MeshBasicMaterial({ map: pizzaTexture });
+            const pizzaSideMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+            const pizzaMaterials = [
+                pizzaSideMaterial, // Right side
+                pizzaSideMaterial, // Left side
+                pizzaTopMaterial, // Top side (pizza top)
+                pizzaSideMaterial, // Bottom side
+                pizzaSideMaterial,  // Front side
+                pizzaSideMaterial  // Back side
+            ];
+
+            PizzaBox = new THREE.Mesh(geometry, pizzaMaterials);
+
+            // Add wireframe
+            const wireframeGeometry = new THREE.EdgesGeometry(geometry);
+            const wireframeMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const wireframeMesh = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+            PizzaBox.add(wireframeMesh);
+
+            scene.add(PizzaBox);
+
+            // Ground
+            ground = createGround();
+            scene.add(ground);
+
+            camera.position.z = 5;
+            camera.position.y = 2;
+
+            // Obstacles
+            const shapes = [
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.SphereGeometry(0.5, 32, 32),
+                new THREE.ConeGeometry(0.5, 1, 32),
+                new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
+                new THREE.TorusGeometry(0.5, 0.2, 16, 100)
+            ];
+
+            for (let i = 0; i < 10; i++) {
+                const svgTexture = generateRandomSVGTexture(false);
+                const svgBlob = new Blob([svgTexture], { type: 'image/svg+xml' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                const textureLoader = new THREE.TextureLoader();
+                const obstacleTexture = textureLoader.load(svgUrl);
+                obstacleTexture.wrapS = obstacleTexture.wrapT = THREE.RepeatWrapping;
+                obstacleTexture.repeat.set(1, 1);
+
+                const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+                const obstacle = new THREE.Mesh(
+                    randomShape,
+                    new THREE.MeshBasicMaterial({ map: obstacleTexture })
+                );
+
+                const scaleFactor = Math.random() * 0.5 + 0.5; // Scale between 0.5 and 1
+                obstacle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+                obstacle.position.set(Math.random() * 10 - 5, 1, -i * 10);
+                obstacle.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.02,
+                    (Math.random() - 0.5) * 0.02,
+                    0
+                );
+
+                // Add random rotation
+                obstacle.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                obstacle.userData.rotationSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01
+                );
+
+                obstacles.push(obstacle);
+                scene.add(obstacle);
+            }
+
+            function updateObstacles() {
+                obstacles.forEach(obstacle => {
+                    obstacle.position.add(obstacle.userData.velocity);
+
+                    // Update rotation
+                    obstacle.rotation.x += obstacle.userData.rotationSpeed.x;
+                    obstacle.rotation.y += obstacle.userData.rotationSpeed.y;
+                    obstacle.rotation.z += obstacle.userData.rotationSpeed.z;
+
+                    // Keep obstacles within bounds
+                    if (obstacle.position.x < minX || obstacle.position.x > maxX) {
+                        obstacle.userData.velocity.x *= -1;
+                    }
+                    if (obstacle.position.y < 0.5 || obstacle.position.y > 2) {
+                        obstacle.userData.velocity.y *= -1;
+                    }
+                });
+            }
+
+            helpMenu.style.display = 'none';
+            document.addEventListener('keydown', onDocumentKeyDown, false);
+            animate();
+        }
+
+        // Generate cool textures on the fly -- Big Code Block move to another file
+        function generateRandomSVGTexture(isGround = true) {
+            const svgSize = Math.min(window.innerWidth, window.innerHeight) / 10;
+            const shapes = ['rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'path'];
+            const colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'cyan', 'magenta'];
+            const randomShape = () => shapes[Math.floor(Math.random() * shapes.length)];
+            const randomColor = () => colors[Math.floor(Math.random() * colors.length)];
+            const randomCoord = (max) => Math.floor(Math.random() * max);
+            const randomSize = (max) => Math.floor(Math.random() * max / 2) + 10;
+            const randomPath = () => {
+                const commands = ['M', 'L', 'C', 'Q', 'Z'];
+                let path = '';
+                for (let i = 0; i < 5; i++) {
+                    const command = commands[Math.floor(Math.random() * commands.length)];
+                    path += `${command} ${randomCoord(svgSize)} ${randomCoord(svgSize)} `;
+                    if (command === 'C' || command === 'Q') {
+                        path += `${randomCoord(svgSize)} ${randomCoord(svgSize)} `;
+                    }
+                }
+                return path;
+            };
+
+            let svgContent = '';
+            const shapeCount = isGround ? 10 : 5;
+            for (let i = 0; i < shapeCount; i++) {
+                const shape = randomShape();
+                switch (shape) {
+                    case 'rect':
+                        svgContent += `<rect x="${randomCoord(svgSize)}" y="${randomCoord(svgSize)}" width="${randomSize(svgSize)}" height="${randomSize(svgSize)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'circle':
+                        svgContent += `<circle cx="${randomCoord(svgSize)}" cy="${randomCoord(svgSize)}" r="${randomSize(svgSize / 2)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'ellipse':
+                        svgContent += `<ellipse cx="${randomCoord(svgSize)}" cy="${randomCoord(svgSize)}" rx="${randomSize(svgSize / 2)}" ry="${randomSize(svgSize / 2)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'line':
+                        svgContent += `<line x1="${randomCoord(svgSize)}" y1="${randomCoord(svgSize)}" x2="${randomCoord(svgSize)}" y2="${randomCoord(svgSize)}" stroke="${randomColor()}" stroke-width="2" />`;
+                        break;
+                    case 'polygon':
+                        svgContent += `<polygon points="${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'polyline':
+                        svgContent += `<polyline points="${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)}" fill="none" stroke="${randomColor()}" stroke-width="2" />`;
+                        break;
+                    case 'path':
+                        svgContent += `<path d="${randomPath()}" fill="none" stroke="${randomColor()}" stroke-width="2" />`;
+                        break;
+                }
+            }
+
+            if (isGround) {
+                // Add more visually complex seamless edges for ground
+                const edgeShapes = ['rect', 'circle', 'ellipse'];
+                for (let i = 0; i < 5; i++) {
+                    const shape = edgeShapes[Math.floor(Math.random() * edgeShapes.length)];
+                    const color = randomColor();
+                    switch (shape) {
+                        case 'rect':
+                            svgContent += `<rect x="0" y="${randomCoord(svgSize)}" width="5" height="${randomSize(svgSize)}" fill="${color}" />`;
+                            svgContent += `<rect x="${svgSize - 5}" y="${randomCoord(svgSize)}" width="5" height="${randomSize(svgSize)}" fill="${color}" />`;
+                            svgContent += `<rect x="${randomCoord(svgSize)}" y="0" width="${randomSize(svgSize)}" height="5" fill="${color}" />`;
+                            svgContent += `<rect x="${randomCoord(svgSize)}" y="${svgSize - 5}" width="${randomSize(svgSize)}" height="5" fill="${color}" />`;
+                            break;
+                        case 'circle':
+                            svgContent += `<circle cx="2.5" cy="${randomCoord(svgSize)}" r="2.5" fill="${color}" />`;
+                            svgContent += `<circle cx="${svgSize - 2.5}" cy="${randomCoord(svgSize)}" r="2.5" fill="${color}" />`;
+                            svgContent += `<circle cx="${randomCoord(svgSize)}" cy="2.5" r="2.5" fill="${color}" />`;
+                            svgContent += `<circle cx="${randomCoord(svgSize)}" cy="${svgSize - 2.5}" r="2.5" fill="${color}" />`;
+                            break;
+                        case 'ellipse':
+                            svgContent += `<ellipse cx="2.5" cy="${randomCoord(svgSize)}" rx="2.5" ry="${randomSize(svgSize / 4)}" fill="${color}" />`;
+                            svgContent += `<ellipse cx="${svgSize - 2.5}" cy="${randomCoord(svgSize)}" rx="2.5" ry="${randomSize(svgSize / 4)}" fill="${color}" />`;
+                            svgContent += `<ellipse cx="${randomCoord(svgSize)}" cy="2.5" rx="${randomSize(svgSize / 4)}" ry="2.5" fill="${color}" />`;
+                            svgContent += `<ellipse cx="${randomCoord(svgSize)}" cy="${svgSize - 2.5}" rx="${randomSize(svgSize / 4)}" ry="2.5" fill="${color}" />`;
+                            break;
+                    }
+                }
+            }
+
+            const svgTexture = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">
+            ${svgContent}
+            </svg>
+            `;
+            return svgTexture;
+        }
+
+        function createGround() {
+            const geometry = new THREE.PlaneGeometry(100, 100);
+            const svgTexture = generateRandomSVGTexture(true);
+            const svgBlob = new Blob([svgTexture], { type: 'image/svg+xml' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+            const textureLoader = new THREE.TextureLoader();
+            const groundTexture = textureLoader.load(svgUrl);
+            groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+            const repeatFactor = 25; // Ensure the texture is tiled a minimum of 10 times
+            groundTexture.repeat.set(repeatFactor, repeatFactor);
+            const material = new THREE.MeshBasicMaterial({ map: groundTexture, side: THREE.DoubleSide });
+            const ground = new THREE.Mesh(geometry, material);
+            ground.rotation.x = Math.PI / 2;
+            return ground;
+        }
+
+        function onDocumentKeyDown(event) {
+            let keyCode = event.which;
+            if (keyCode == 37) { // Left arrow key
+                if (PizzaBox.position.x > minX) {
+                    PizzaBox.position.x -= 0.1;
+                } else {
+                    showMessage('Reached left limit!');
+                }
+            } else if (keyCode == 39) { // Right arrow key
+                if (PizzaBox.position.x < maxX) {
+                    PizzaBox.position.x += 0.1;
+                } else {
+                    showMessage('Reached right limit!');
+                }
+            } else if (keyCode == 38) { // Up arrow key
+                if (PizzaBox.position.y < maxY) {
+                    PizzaBox.position.y += 0.1;
+                } else {
+                    showMessage('Reached upper limit!');
+                }
+            } else if (keyCode == 40) { // Down arrow key
+                if (PizzaBox.position.y > minY) {
+                    PizzaBox.position.y -= 0.1;
+                } else {
+                    showMessage('Reached lower limit!');
+                }
+            } else if (keyCode == 72) { // 'H' key
+                toggleHelpMenu();
+            } else if (keyCode == 70) { // 'F' key
+                toggleFPS();
+            } else if (keyCode == 73) { // 'I' key
+                toggleInfo();
+            } else if (keyCode == 32) { // Spacebar
+                fireHotDog();
+            } else if (keyCode == 83) { // 'S' key
+                fireSausage();
+            }
+        }
+
+        // Function to fire a HotDog
+        function fireHotDog() { 
+            const hotDogGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 32);
+            const hotDogMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const hotDog = new THREE.Mesh(hotDogGeometry, hotDogMaterial);
+            hotDog.rotation.x = Math.PI / 2;
+            hotDog.position.set(PizzaBox.position.x, PizzaBox.position.y, PizzaBox.position.z - 1);
+            hotDogs.push(hotDog);
+            scene.add(hotDog);
+        }
+
+        // Function to fire a larger Sausage
+        function fireSausage() { 
+            if (sausageCount <= 0) {
+                showMessage('No more sausages left!');
+                return;
+            }
+            const sausageGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2, 32);
+            const sausageMaterial = new THREE.MeshBasicMaterial({ color: 0xffa500 });
+            const sausage = new THREE.Mesh(sausageGeometry, sausageMaterial);
+            sausage.rotation.x = Math.PI / 2;
+            sausage.position.set(PizzaBox.position.x, PizzaBox.position.y, PizzaBox.position.z - 1);
+            sausages.push(sausage);
+            scene.add(sausage);
+            sausageCount--;
+            sausageCounter.innerText = `Sausages: ${sausageCount}`;
+        }
+
+        function toggleHelpMenu() {
+            helpMenu.style.display = helpMenu.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function toggleFPS() {
+            showFPS = !showFPS;
+            fpsCounter.style.display = showFPS ? 'block' : 'none';
+        }
+
+        function toggleInfo() {
+            showInfo = !showInfo;
+            info.style.display = showInfo ? 'block' : 'none';
+        }
+
+        function showMessage(message) {
+            messageBox.innerText = message;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 2000);
+        }
+
+        function checkCollision(object1, object2) {
+            const box1 = new THREE.Box3().setFromObject(object1);
+            const box2 = new THREE.Box3().setFromObject(object2);
+            return box1.intersectsBox(box2);
+        }
+
+        function createExplosion(obstacle) {
+            const explosionPieces = [];
+            const scaleFactor = 0.25; // Scale down the pieces
+            for (let i = 0; i < 8; i++) {
+                const piece = obstacle.clone();
+                piece.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                piece.position.copy(obstacle.position);
+                piece.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1
+                );
+                explosionPieces.push(piece);
+                scene.add(piece);
+            }
+            return explosionPieces;
+        }
+
+        function createImplosion(obstacle) {
+            const implosionPieces = [];
+            const scaleFactor = 0.25; // Scale down the pieces
+            for (let i = 0; i < 8; i++) {
+            const piece = obstacle.clone();
+            piece.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            piece.position.copy(obstacle.position);
+            piece.userData.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.1,
+                (Math.random() - 0.5) * 0.1,
+                (Math.random() - 0.5) * 0.1
+            );
+            piece.userData.shrinkSpeed = 0.01; // Speed at which the pieces shrink
+            implosionPieces.push(piece);
+            scene.add(piece);
+            }
+
+            // Animate implosion pieces
+            implosionPieces.forEach(piece => {
+            const animatePiece = () => {
+                piece.position.add(piece.userData.velocity);
+                piece.scale.multiplyScalar(1 - piece.userData.shrinkSpeed);
+                if (piece.scale.x <= 0.01) {
+                scene.remove(piece);
+                } else {
+                requestAnimationFrame(animatePiece);
+                }
+            };
+            animatePiece();
+            });
+            
+            return implosionPieces;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Move obstacles
+            obstacles.forEach(obstacle => {
+                obstacle.position.z += speed;
+                if (obstacle.position.z > 5) {
+                    obstacle.position.z = -50;
+                    obstacle.position.x = Math.random() * 10 - 5;
+                }
+
+                // Check for collision with PizzaBox
+                if (checkCollision(PizzaBox, obstacle)) {
+                    if (obstacle.geometry.type === 'TorusGeometry') {
+                        showMessage('Pizza Power increased!');
+                        pizzaPower++;
+                        pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
+                        createImplosion(obstacle); // Call createExplosion when torus collides
+                        sausageCount++; // Add a sausage when torus collides
+                    } else {
+                        showMessage('Collision detected!');
+                        pizzaPower--;
+                        pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
+                        if (pizzaPower <= 0) {
+                            showMessage('Game Over!');
+                            gameOverScreen.style.display = 'flex';
+                            // Handle game over (e.g., reset game, show game over screen, etc.)
+                        }
+                    }
+                }
+            });
+
+            // Move hotDogs
+            hotDogs.forEach((hotDog, index) => {
+                hotDog.position.z -= 0.2;
+                if (hotDog.position.z < -50) {
+                    scene.remove(hotDog);
+                    hotDogs.splice(index, 1);
+                }
+
+                // Check for collision with obstacles
+                obstacles.forEach((obstacle, obstacleIndex) => {
+                    if (checkCollision(hotDog, obstacle)) {
+                        showMessage('HotDog Hit!');
+                        scene.remove(hotDog);
+                        hotDogs.splice(index, 1);
+                        DogeCoins++;
+
+                        // Create explosion effect
+                        const explosionPieces = createExplosion(obstacle);
+                        scene.remove(obstacle);
+                        obstacles.splice(obstacleIndex, 1);
+
+                        // Animate explosion pieces
+                        explosionPieces.forEach(piece => {
+                            const animatePiece = () => {
+                                piece.position.add(piece.userData.velocity);
+                                piece.rotation.x += 0.1;
+                                piece.rotation.y += 0.1;
+                                piece.rotation.z += 0.1;
+                                if (piece.position.distanceTo(obstacle.position) > 2) {
+                                    scene.remove(piece);
+                                } else {
+                                    requestAnimationFrame(animatePiece);
+                                }
+                            };
+                            animatePiece();
+                        });
+                    }
+                });
+            });
+
+            // Move sausages with wobble effect
+            sausages.forEach((sausage, index) => {
+                sausage.position.z -= 0.2;
+                sausage.position.y += Math.sin(performance.now() * wobbleSpeed) * wobbleAmplitude;
+                if (sausage.position.z < -50) {
+                    scene.remove(sausage);
+                    sausages.splice(index, 1);
+                    sausageCounter.innerText = `Sausages: ${sausageCount}`;
+                }
+
+                // Check for collision with obstacles
+                obstacles.forEach((obstacle, obstacleIndex) => {
+                    if (checkCollision(sausage, obstacle)) {
+                        showMessage('Sausage Slam!');
+                        scene.remove(sausage);
+                        sausages.splice(index, 1);
+                        sausageCounter.innerText = `Sausages: ${sausageCount}`;
+                        DogeCoins += 10;
+
+                        // Create explosion effect
+                        const explosionPieces = createExplosion(obstacle);
+                        scene.remove(obstacle);
+                        obstacles.splice(obstacleIndex, 1);
+
+                        // Animate explosion pieces
+                        explosionPieces.forEach(piece => {
+                            const animatePiece = () => {
+                                piece.position.add(piece.userData.velocity);
+                                piece.rotation.x += 0.1;
+                                piece.rotation.y += 0.1;
+                                piece.rotation.z += 0.1;
+                                if (piece.position.distanceTo(obstacle.position) > 2) {
+                                    scene.remove(piece);
+                                } else {
+                                    requestAnimationFrame(animatePiece);
+                                }
+                            };
+                            animatePiece();
+                        });
+                    }
+                });
+            });
+
+            // Update FPS
+            const now = performance.now();
+            const delta = now - lastFrameTime;
+            lastFrameTime = now;
+            if (showFPS && now - lastFPSUpdateTime >= 1000) {
+                const fps = (1000 / delta).toFixed(2);
+                fpsCounter.innerText = `FPS: ${fps}`;
+                lastFPSUpdateTime = now;
+            }
+
+            // Update Info
+            if (showInfo) {
+                info.innerText = `PizzaBox Position: (${PizzaBox.position.x.toFixed(2)}, ${PizzaBox.position.y.toFixed(2)}, ${PizzaBox.position.z.toFixed(2)})`;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>

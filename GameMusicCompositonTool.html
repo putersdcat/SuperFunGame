@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track-Based Music Composer with Effects</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 100px;
+      margin-bottom: 20px;
+    }
+    button {
+      margin: 10px;
+    }
+    #instructions {
+      display: none;
+      text-align: left;
+      margin: 0 auto;
+      max-width: 600px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      background: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Track-Based Music Composer with Effects</h1>
+
+  <textarea id="compositionInput">T120|B: C2.1r | H: G3.2s C4.1t | M: E5.1d G5.0.5del</textarea>
+  <br>
+  <button id="playComposition">Play Composition</button>
+  <button id="showDemo1">Play Demo 1</button>
+  <button id="showDemo2">Play Demo 2</button>
+  <button id="showDemo3">Play Demo 3</button>
+
+  <div id="instructions">
+    <h2>Instructions</h2>
+    <p>
+      - **T[tempo]**: Set tempo in BPM (e.g., `T120` sets 120 beats per minute)<br>
+      - **B, H, M**: Represent the Bass/Drum track (B), Harmony track (H), and Melody track (M).<br>
+      - **Notes**: Use note names (e.g., `A4`, `C#5`) or frequencies (e.g., `440`).<br>
+      - **Durations**: Specify durations after notes (e.g., `C4.1` for 1 beat, `G4.0.5` for half a beat).<br>
+      - **Waveform Modifiers**: Use `s`, `sq`, `saw`, or `t` after durations to specify the waveform (`sine`, `square`, `sawtooth`, or `triangle`).<br>
+      - **Effects**: Apply effects by adding the following to the end of the note:
+        <ul>
+          <li>`r` for reverb (e.g., `C4.1r`)</li>
+          <li>`t` for tremolo (e.g., `A4.2t`)</li>
+          <li>`d` for distortion (e.g., `E5.1d`)</li>
+          <li>`del` for delay (e.g., `G5.0.5del`)</li>
+        </ul>
+      <br>
+      **Usage**: Enter your music in the text box and press "Play Composition" to hear it. Press the H key for this help.
+    </p>
+  </div>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function parseNote(note) {
+      const pitchRegex = /([A-G]#?\d|[0-9]+)(\.[0-9]+)?([a-z]*)/;
+      const match = note.match(pitchRegex);
+      if (!match) return null;
+      
+      let pitch = match[1];
+      let duration = parseFloat(match[2] || 1); // default to 1 beat
+      let effects = match[3];  // Capture any effects like 'r', 't', 'd', 'del'
+
+      const frequencies = {
+        'C2': 65.41, 'C3': 130.81, 'C4': 261.63, 'C5': 523.25, 'C#2': 69.30,
+        'D2': 73.42, 'D3': 146.83, 'D4': 293.66, 'D5': 587.33, 'D#2': 77.78,
+        'E2': 82.41, 'E3': 164.81, 'E4': 329.63, 'E5': 659.25,
+        'F2': 87.31, 'F3': 174.61, 'F4': 349.23, 'F5': 698.46, 'F#2': 92.50,
+        'G2': 98.00, 'G3': 196.00, 'G4': 392.00, 'G5': 783.99, 'G#2': 103.83,
+        'A2': 110.00, 'A3': 220.00, 'A4': 440.00, 'A5': 880.00, 'A#2': 116.54,
+        'B2': 123.47, 'B3': 246.94, 'B4': 493.88, 'B5': 987.77
+      };
+
+      const frequency = frequencies[pitch] || parseFloat(pitch);  // support Hz or note names
+      const waveform = effects.includes('s') ? 'sine' :
+                       effects.includes('sq') ? 'square' :
+                       effects.includes('saw') ? 'sawtooth' :
+                       'triangle'; // default to triangle
+
+      return { frequency, duration, waveform, effects };
+    }
+
+    function createReverb() {
+      const convolver = audioCtx.createConvolver();
+      const rate = audioCtx.sampleRate;
+      const length = rate * 2;
+      const decay = 2;
+      const impulse = audioCtx.createBuffer(2, length, rate);
+      for (let i = 0; i < 2; i++) {
+        const impulseChannel = impulse.getChannelData(i);
+        for (let j = 0; j < length; j++) {
+          impulseChannel[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / length, decay);
+        }
+      }
+      convolver.buffer = impulse;
+      return convolver;
+    }
+
+    function createDistortion() {
+      const distortion = audioCtx.createWaveShaper();
+      const curve = new Float32Array(44100).map((_, i) => {
+        let x = (i * 2) / 44100 - 1;
+        return (Math.PI + x * Math.abs(x)) / (Math.PI + 1);
+      });
+      distortion.curve = curve;
+      distortion.oversample = '4x';
+      return distortion;
+    }
+
+    function createDelay() {
+      const delay = audioCtx.createDelay();
+      delay.delayTime.value = 0.5;  // 0.5 second delay
+      return delay;
+    }
+
+    function playNote(note, startTime, tempo) {
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.setValueAtTime(0.5, startTime);
+
+      // Effects Chain
+      let source = oscillator;
+
+      // Apply effects in the chain
+      if (note.effects.includes('r')) {  // Reverb
+        const reverb = createReverb();
+        source.connect(reverb);
+        source = reverb;
+      }
+
+      if (note.effects.includes('d')) {  // Distortion
+        const distortion = createDistortion();
+        source.connect(distortion);
+        source = distortion;
+      }
+
+      if (note.effects.includes('del')) {  // Delay
+        const delay = createDelay();
+        source.connect(delay);
+        source = delay;
+      }
+
+      source.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.frequency.setValueAtTime(note.frequency, startTime);
+      oscillator.type = note.waveform;
+
+      // Tremolo effect
+      if (note.effects.includes('t')) {
+        const lfo = audioCtx.createOscillator();
+        const tremoloGain = audioCtx.createGain();
+        lfo.frequency.setValueAtTime(10, startTime);
+        tremoloGain.gain.setValueAtTime(0.5, startTime);
+        lfo.connect(tremoloGain).connect(gainNode.gain);
+        lfo.start(startTime);
+        lfo.stop(startTime + (note.duration * (60 / tempo)));
+      }
+
+      oscillator.start(startTime);
+      oscillator.stop(startTime + (note.duration * (60 / tempo)));
+    }
+
+    function playTrack(track, startTime, tempo) {
+      track.split(' ').forEach((noteString, index) => {
+        const note = parseNote(noteString);
+        if (note) {
+          playNote(note, startTime + index * (60 / tempo), tempo);
+        }
+      });
+    }
+
+    function playComposition(composition) {
+      const tempoMatch = composition.match(/T(\d+)/);
+      const tempo = tempoMatch ? parseInt(tempoMatch[1], 10) : 120;  // default to 120 BPM
+
+      const bassTrack = composition.match(/B:([^\|]*)/);
+      const harmonyTrack = composition.match(/H:([^\|]*)/);
+      const melodyTrack = composition.match(/M:([^\|]*)/);
+
+      const startTime = audioCtx.currentTime;
+      if (bassTrack) playTrack(bassTrack[1].trim(), startTime, tempo);
+      if (harmonyTrack) playTrack(harmonyTrack[1].trim(), startTime + 2, tempo);
+      if (melodyTrack) playTrack(melodyTrack[1].trim(), startTime + 4, tempo);
+    }
+
+    document.getElementById('playComposition').addEventListener('click', () => {
+      const composition = document.getElementById('compositionInput').value;
+      playComposition(composition);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'H') {
+        const instructions = document.getElementById('instructions');
+        instructions.style.display = instructions.style.display === 'none' ? 'block' : 'none';
+      }
+    });
+
+    // Demo compositions showcasing retro video game music
+    const demo1 = "T140|B: C2.1r G2.1 C3.1 G2.1 | H: E4.1s A4.1 G4.1t E4.1t | M: C5.0.5del G5.0.5d E5.1 C5.0.5";
+    const demo2 = "T160|B: G2.1r D2.1 G3.1 D2.1 | H: C4.1s F4.1t G4.1r C4.1 | M: B4.0.5del D5.0.5d G5.1 B4.0.5";
+    const demo3 = "T120|B: E2.1r A2.1 E3.1 A2.1 | H: D4.1s G4.1t A4.1r D4.1 | M: F#4.0.5del C#5.0.5d A4.1 E4.0.5";
+
+    document.getElementById('showDemo1').addEventListener('click', () => {
+      document.getElementById('compositionInput').value = demo1;
+      playComposition(demo1);
+    });
+
+    document.getElementById('showDemo2').addEventListener('click', () => {
+      document.getElementById('compositionInput').value = demo2;
+      playComposition(demo2);
+    });
+
+    document.getElementById('showDemo3').addEventListener('click', () => {
+      document.getElementById('compositionInput').value = demo3;
+      playComposition(demo3);
+    });
+  </script>
+
+</body>
+</html>
