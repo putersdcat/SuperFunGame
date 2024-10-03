@@ -27,24 +27,44 @@
         #sausageCounter { bottom: 50px; left: 10px; }
         #DogeCoinCounter { bottom: 90px; left: 10px; }
         #gameOverScreen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 0, 0, 0.7);
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 48px;
-            display: none;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255, 0, 0, 0.7);
+                color: white;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                font-size: 48px;
+                display: none;
+                text-align: center;
+        }
+        #gameOverScreen .gameOverText {
+            margin-bottom: 20px; /* Space between text and button */
+            text-shadow: 2px 2px 4px #000000;
         }
         #retryButton {
             margin-top: 20px;
-            padding: 10px 20px;
+            padding: 15px 30px;
             font-size: 24px;
             cursor: pointer;
+            background-color: #4CAF50; /* Green background */
+            border: none;
+            color: white;
+            border-radius: 25px;
+            box-shadow: 0 5px #999;
+            transition: all 0.3s ease;
+        }
+        #retryButton:hover {
+            background-color: #45a049;
+        }
+        #retryButton:active {
+            background-color: #3e8e41;
+            box-shadow: 0 2px #666;
+            transform: translateY(3px);
         }
     </style>
 </head>
@@ -65,7 +85,7 @@
     <div id="sausageCounter">Sausages: 10</div>
     <div id="DogeCoinCounter">DogeCoins: 0</div>
     <div id="gameOverScreen">
-        Game Over<br>
+        <div class="gameOverText">Game Over</div>
         <button id="retryButton">Try Again</button>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.26/Tone.js"></script>
@@ -73,14 +93,27 @@
     <script>
         // Tone.js setup
         const synth = new Tone.Synth().toDestination();
+        // const explodeSynth = new Tone.MembraneSynth({
+        //     pitchDecay: 0.05,
+        //     octaves: 10,
+        //     envelope: {
+        //         attack: 0.001,
+        //         decay: 0.4,
+        //         sustain: 0.01,
+        //         release: 1.4
+        //     }
+        // }).toDestination();
         const explodeSynth = new Tone.MembraneSynth({
             pitchDecay: 0.05,
             octaves: 10,
+            oscillator: {
+                type: 'square'
+            },
             envelope: {
                 attack: 0.001,
-                decay: 0.4,
-                sustain: 0.01,
-                release: 1.4
+                decay: 0.3,
+                sustain: 0.1,
+                release: 0.8
             }
         }).toDestination();
         const backgroundMusic = new Tone.Loop(song, '4n').start(0);
