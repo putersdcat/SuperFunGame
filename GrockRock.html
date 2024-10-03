@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stable Game Music Generator</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f4f4f4; text-align: center; }
+  button { padding: 10px; margin: 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div>
+  <button onclick="startMusic()">Play Music</button>
+  <button onclick="stopMusic()">Stop Music</button>
+</div>
+
+<script>
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+let isPlaying = false;
+let loopInterval;
+
+// Notes in C major scale
+const notes = {
+    'C': 261.63, 'D': 293.66, 'E': 329.63, 'F': 349.23,
+    'G': 392.00, 'A': 440.00, 'B': 493.88, 'C+': 523.25
+};
+
+let masterGain = ctx.createGain();
+masterGain.connect(ctx.destination);
+masterGain.gain.setValueAtTime(0.5, ctx.currentTime);
+
+function createDistortion() {
+    let distortion = ctx.createWaveShaper();
+    distortion.curve = makeDistortionCurve(400);
+    distortion.oversample = '4x';
+    return distortion;
+}
+
+function makeDistortionCurve(amount) {
+    let k = amount, n_samples = 44100, curve = new Float32Array(n_samples), deg = Math.PI / 180, x;
+    for (let i = 0; i < n_samples; ++i) {
+        x = i * 2 / n_samples - 1;
+        curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
+}
+
+function playNote(note, duration = 0.5, type = 'sine') {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const distortion = createDistortion();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(notes[note], ctx.currentTime);
+    
+    osc.connect(distortion);
+    distortion.connect(gain);
+    gain.connect(masterGain);
+
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + duration);
+    osc.start();
+    osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+        distortion.disconnect();
+    };
+    osc.stop(ctx.currentTime + duration);
+}
+
+function synthKick(time) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g);
+    g.connect(masterGain);
+
+    o.frequency.setValueAtTime(150, time);
+    o.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
+
+    g.gain.setValueAtTime(1, time);
+    g.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+
+    o.start(time);
+    o.onended = () => {
+        o.disconnect();
+        g.disconnect();
+    };
+    o.stop(time + 0.5);
+}
+
+function synthSnare(time) {
+    const noise = ctx.createBufferSource();
+    const noiseBuffer = ctx.createBuffer(1, 44100, ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < 44100; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+    noise.buffer = noiseBuffer;
+
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'highpass';
+    noiseFilter.frequency.value = 1000;
+    noise.connect(noiseFilter);
+
+    const noiseEnvelope = ctx.createGain();
+    noiseFilter.connect(noiseEnvelope);
+    noiseEnvelope.connect(masterGain);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(100, time);
+
+    const oscEnvelope = ctx.createGain();
+    osc.connect(oscEnvelope);
+    oscEnvelope.connect(masterGain);
+
+    noiseEnvelope.gain.setValueAtTime(1, time);
+    noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    oscEnvelope.gain.setValueAtTime(0.8, time);
+    oscEnvelope.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    
+    noise.start(time);
+    osc.start(time);
+
+    noise.onended = osc.onended = () => {
+        noise.disconnect();
+        noiseFilter.disconnect();
+        noiseEnvelope.disconnect();
+        osc.disconnect();
+        oscEnvelope.disconnect();
+    };
+
+    noise.stop(time + 0.2);
+    osc.stop(time + 0.2);
+}
+
+function generateMusic() {
+    const melody = ['C', 'D', 'E', 'C', 'F', 'E', 'D', 'C+'];
+    let beat = 0;
+    loopInterval = setInterval(() => {
+        playNote(melody[beat % melody.length], 0.25);
+
+        if (beat % 4 === 0) synthKick(ctx.currentTime);
+        if (beat % 8 === 4) synthSnare(ctx.currentTime);
+
+        if (beat % 16 === 0) {
+            playNote(melody[beat % melody.length], 0.3 + Math.random() * 0.1, 'sawtooth');
+        }
+        
+        beat++;
+    }, (60 / 160) * 1000); // 160 BPM
+}
+
+function startMusic() {
+    if (!isPlaying) {
+        ctx.resume();
+        generateMusic();
+        isPlaying = true;
+    }
+}
+
+function stopMusic() {
+    if (isPlaying) {
+        clearInterval(loopInterval);
+        ctx.suspend();
+        isPlaying = false;
+    }
+}
+
+document.body.addEventListener('click', function() {
+    if (ctx.state === 'suspended') ctx.resume();
+}, {once: true});
+</script>
+</body>
+</html>

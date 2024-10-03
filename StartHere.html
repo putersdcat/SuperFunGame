@@ -40,6 +40,12 @@
             font-size: 48px;
             display: none;
         }
+        #retryButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 24px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -58,9 +64,34 @@
     <div id="pizzaPowerCounter">Pizza Power: 420</div>
     <div id="sausageCounter">Sausages: 10</div>
     <div id="DogeCoinCounter">DogeCoins: 0</div>
-    <div id="gameOverScreen">Game Over</div>
+    <div id="gameOverScreen">
+        Game Over<br>
+        <button id="retryButton">Try Again</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.26/Tone.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
+        // Tone.js setup
+        const synth = new Tone.Synth().toDestination();
+        const explodeSynth = new Tone.MembraneSynth({
+            pitchDecay: 0.05,
+            octaves: 10,
+            envelope: {
+                attack: 0.001,
+                decay: 0.4,
+                sustain: 0.01,
+                release: 1.4
+            }
+        }).toDestination();
+        const backgroundMusic = new Tone.Loop(song, '4n').start(0);
+        Tone.Transport.bpm.value = 120;
+
+        function song(time) {
+            synth.triggerAttackRelease("C4", "8n", time);
+            synth.triggerAttackRelease("E4", "8n", time + 0.5);
+            synth.triggerAttackRelease("G4", "8n", time + 1);
+        }
+
         let scene, camera, renderer, PizzaBox, ground;
         let obstacles = [];
         let hotDogs = [];
@@ -217,25 +248,34 @@
             }
 
             function updateObstacles() {
-                obstacles.forEach(obstacle => {
-                    obstacle.position.add(obstacle.userData.velocity);
+            obstacles.forEach(obstacle => {
+                obstacle.position.add(obstacle.userData.velocity);
 
-                    // Update rotation
-                    obstacle.rotation.x += obstacle.userData.rotationSpeed.x;
-                    obstacle.rotation.y += obstacle.userData.rotationSpeed.y;
-                    obstacle.rotation.z += obstacle.userData.rotationSpeed.z;
+                // Update rotation
+                obstacle.rotation.x += obstacle.userData.rotationSpeed.x;
+                obstacle.rotation.y += obstacle.userData.rotationSpeed.y;
+                obstacle.rotation.z += obstacle.userData.rotationSpeed.z;
 
-                    // Keep obstacles within bounds
-                    if (obstacle.position.x < minX || obstacle.position.x > maxX) {
-                        obstacle.userData.velocity.x *= -1;
-                    }
-                    if (obstacle.position.y < 0.5 || obstacle.position.y > 2) {
-                        obstacle.userData.velocity.y *= -1;
-                    }
-                });
-            }
+                // Keep obstacles within bounds
+                if (obstacle.position.x < minX || obstacle.position.x > maxX) {
+                    obstacle.userData.velocity.x *= -1;
+                }
+                if (obstacle.position.y < minY || obstacle.position.y > maxY) {
+                    obstacle.userData.velocity.y *= -1;
+                }
+
+                // Increase speed and regenerate ground texture for every 50 pizza power points above 420
+                if(pizzaPower > 420 && (pizzaPower - 420) % 50 === 0) {
+                    speed += 0.01; // Increase speed slightly
+                    scene.remove(ground);
+                    ground = createGround();
+                    scene.add(ground);
+                }
+            });
+        }
 
             helpMenu.style.display = 'none';
+            //document.getElementById('tryAgain').style.display = 'none'; // Add try again button
             document.addEventListener('keydown', onDocumentKeyDown, false);
             animate();
         }
@@ -254,7 +294,7 @@
                 let path = '';
                 for (let i = 0; i < 5; i++) {
                     const command = commands[Math.floor(Math.random() * commands.length)];
-                    path += `${command} ${randomCoord(svgSize)} ${randomCoord(svgSize)} `;
+                    path += `${command}${randomCoord(svgSize)}${randomCoord(svgSize)}`;
                     if (command === 'C' || command === 'Q') {
                         path += `${randomCoord(svgSize)} ${randomCoord(svgSize)} `;
                     }
@@ -392,6 +432,7 @@
             hotDog.position.set(PizzaBox.position.x, PizzaBox.position.y, PizzaBox.position.z - 1);
             hotDogs.push(hotDog);
             scene.add(hotDog);
+            synth.triggerAttackRelease("C5", "16n"); // Play sound when firing hot dog
         }
 
         // Function to fire a larger Sausage
@@ -409,6 +450,7 @@
             scene.add(sausage);
             sausageCount--;
             sausageCounter.innerText = `Sausages: ${sausageCount}`;
+            synth.triggerAttackRelease("A3", "8n"); // Play a deeper sound for sausage
         }
 
         function toggleHelpMenu() {
@@ -439,6 +481,13 @@
             return box1.intersectsBox(box2);
         }
 
+        function gameOver() {
+            gameOverScreen.style.display = 'flex';
+            document.getElementById('retryButton').onclick = function() {
+                location.reload(); // Reload the page to restart the game
+            };
+        }
+
         function createExplosion(obstacle) {
             const explosionPieces = [];
             const scaleFactor = 0.25; // Scale down the pieces
@@ -454,7 +503,8 @@
                 explosionPieces.push(piece);
                 scene.add(piece);
             }
-            return explosionPieces;
+            explodeSynth.triggerAttackRelease("C2", "1n"); // Sound for explosion
+            return explosionPieces;f
         }
 
         function createImplosion(obstacle) {
@@ -469,7 +519,7 @@
                 (Math.random() - 0.5) * 0.1,
                 (Math.random() - 0.5) * 0.1
             );
-            piece.userData.shrinkSpeed = 0.01; // Speed at which the pieces shrink
+            piece.userData.shrinkSpeed = 0.01; // Speed at which the piecfes shrink
             implosionPieces.push(piece);
             scene.add(piece);
             }
@@ -510,14 +560,15 @@
                         pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
                         createImplosion(obstacle); // Call createExplosion when torus collides
                         sausageCount++; // Add a sausage when torus collides
+                        explodeSynth.triggerAttackRelease("E2", "4n"); // Sound for collision with torus
                     } else {
                         showMessage('Collision detected!');
                         pizzaPower--;
                         pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
                         if (pizzaPower <= 0) {
                             showMessage('Game Over!');
-                            gameOverScreen.style.display = 'flex';
-                            // Handle game over (e.g., reset game, show game over screen, etc.)
+                            //gameOverScreen.style.display = 'flex';
+                            gameOver(); // Handle game over (e.g., reset game, show game over screen, etc.)
                         }
                     }
                 }
