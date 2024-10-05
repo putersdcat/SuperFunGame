@@ -21,6 +21,10 @@
             left: 50%;
             transform: translate(-50%, -50%);
             display: none;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         #messageBox { bottom: 10px; right: 10px; }
         #pizzaPowerCounter { bottom: 10px; left: 10px; }
@@ -72,13 +76,29 @@
     <div id="info"></div>
     <div id="fpsCounter"></div>
     <div id="helpMenu">
-        <h3>Help Menu</h3>
-        <p>Use arrow keys to move the PizzaBox.</p>
-        <p>Press 'H' to toggle this help menu.</p>
-        <p>Press 'F' to toggle FPS counter.</p>
-        <p>Press 'I' to toggle info display.</p>
-        <p>Press 'Spacebar' to fire the HotDog Cannon.</p>
-        <p>Press 'S' to fire a larger Sausage.</p>
+        <h2 style="text-align: center; margin-bottom: 20px;">Help Menu</h2>
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="display: inline-block; text-align: center;">
+                <div style="font-size: 24px;">&uarr;</div>
+                <div>
+                    <div style="display: inline-block; font-size: 24px;">&larr;</div>
+                    <div style="display: inline-block; font-size: 24px;">&darr;</div>
+                    <div style="display: inline-block; font-size: 24px;">&rarr;</div>
+                </div>
+            </div>
+        </div>
+        <p style="text-align: center; margin-bottom: 20px;">Use arrow keys to move the PizzaBox.</p>
+        <hr style="border-color: white; margin-bottom: 20px;">
+        <p style="text-align: center; margin-bottom: 20px;"><strong>Controls:</strong></p>
+        <ul style="list-style-type: none; padding: 0; text-align: center; margin-bottom: 20px;">
+            <li style="margin-bottom: 10px;">Press <strong>'H'</strong> to toggle this help menu.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'F'</strong> to toggle FPS counter.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'I'</strong> to toggle info display.</li>
+            <li style="margin-bottom: 10px;">Press <strong>Spacebar</strong> to fire the HotDog Cannon.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'S'</strong> to fire a larger Sausage.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'R'</strong> to restart the game.</li>
+        </ul>
+        <hr style="border-color: white;">
     </div>
     <div id="messageBox">Press 'H' for help</div>
     <div id="pizzaPowerCounter">Pizza Power: 420</div>
@@ -91,39 +111,78 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.26/Tone.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // Tone.js setup
-        const synth = new Tone.Synth().toDestination();
-        // const explodeSynth = new Tone.MembraneSynth({
-        //     pitchDecay: 0.05,
-        //     octaves: 10,
-        //     envelope: {
-        //         attack: 0.001,
-        //         decay: 0.4,
-        //         sustain: 0.01,
-        //         release: 1.4
-        //     }
-        // }).toDestination();
+        // Tone.js setup 
+        //const synth = new Tone.Synth().toDestination();
+        const synth = new Tone.MonoSynth({
+            oscillator: {
+            type: "sawtooth"
+            },
+            filter: {
+            Q: 2,
+            type: "lowpass",
+            rolloff: -24
+            },
+            envelope: {
+            attack: 0,
+            decay: 0.2,
+            sustain: 0.2,
+            release: 0.5
+            },
+            filterEnvelope: {
+            attack: 0.01,
+            decay: 0.1,
+            sustain: 0.5,
+            release: 0.2,
+            baseFrequency: 200,
+            octaves: 7,
+            exponent: 2
+            }
+        }).toDestination();
         const explodeSynth = new Tone.MembraneSynth({
             pitchDecay: 0.05,
             octaves: 10,
             oscillator: {
-                type: 'square'
+            type: 'square'
             },
             envelope: {
-                attack: 0.001,
-                decay: 0.3,
-                sustain: 0.1,
-                release: 0.8
+            attack: 0,
+            decay: 0.3,
+            sustain: 0.1,
+            release: 0.8
             }
         }).toDestination();
-        const backgroundMusic = new Tone.Loop(song, '4n').start(0);
-        Tone.Transport.bpm.value = 120;
+        
+        const powerUpSynth = new Tone.FMSynth({
+            modulationIndex: 12.22,
+            envelope: {
+            attack: 0,
+            decay: 0.2,
+            sustain: 0.3,
+            release: 0.9
+            },
+            modulation: {
+            type: "square"
+            },
+            modulationEnvelope: {
+            attack: 0,
+            decay: 0.01,
+            sustain: 1,
+            release: 0.5
+            }
+        }).toDestination();
 
-        function song(time) {
-            synth.triggerAttackRelease("C4", "8n", time);
-            synth.triggerAttackRelease("E4", "8n", time + 0.5);
-            synth.triggerAttackRelease("G4", "8n", time + 1);
-        }
+        const MetalSynth = new Tone.MetalSynth({
+            frequency: 100,
+            envelope: {
+            attack: 0,
+            decay: 0.5,
+            release: 0.3
+            },
+            harmonicity: 3.0,
+            modulationIndex: 20,
+            resonance: 2000,
+            octaves: 1.0
+        }).toDestination();
 
         let scene, camera, renderer, PizzaBox, ground;
         let obstacles = [];
@@ -144,25 +203,25 @@
         let pizzaPower = 420;
         let sausageCount = 10;
         let DogeCoins = 0;
-        const minX = -window.innerWidth / 2 / 100;
-        const maxX = window.innerWidth / 2 / 100;
+        let DogeCoinCounter = document.getElementById('DogeCoinCounter'); // Add this line
+        let level = 1; // Initialize level variable
+        let minX = -window.innerWidth / 2 / 100;
+        let maxX = window.innerWidth / 2 / 100;
         const minY = 0.5;
         const maxY = 2;
 
+        // Wobble effect for sausages - maybe we can add to other things too
         const wobbleSpeed = 0.05;
         const wobbleAmplitude = 0.1;
 
-        window.addEventListener('resize', () => {
-            const newMinX = -window.innerWidth / 2 / 100;
-            const newMaxX = window.innerWidth / 2 / 100;
-            if (PizzaBox.position.x < newMinX) {
-                PizzaBox.position.x = newMinX;
-            } else if (PizzaBox.position.x > newMaxX) {
-                PizzaBox.position.x = newMaxX;
-            }
-            minX = newMinX;
-            maxX = newMaxX;
-        });
+        // Define shapes array with geometries
+        const shapes = [
+            new THREE.BoxGeometry(1, 1, 1),
+            new THREE.SphereGeometry(0.5, 32, 32),
+            new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
+            new THREE.DodecahedronGeometry(0.5),
+            new THREE.TorusGeometry(0.5, 0.2, 16, 100)
+        ];
 
         function init() {
             scene = new THREE.Scene();
@@ -234,10 +293,13 @@
             const shapes = [
                 new THREE.BoxGeometry(1, 1, 1),
                 new THREE.SphereGeometry(0.5, 32, 32),
-                new THREE.ConeGeometry(0.5, 1, 32),
+                //new THREE.ConeGeometry(0.5, 1, 32),
                 new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
+                new THREE.DodecahedronGeometry(0.5, 0),
                 new THREE.TorusGeometry(0.5, 0.2, 16, 100)
             ];
+
+
 
             for (let i = 0; i < 10; i++) {
                 const svgTexture = generateRandomSVGTexture(false);
@@ -257,7 +319,9 @@
                 const scaleFactor = Math.random() * 0.5 + 0.5; // Scale between 0.5 and 1
                 obstacle.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
-                obstacle.position.set(Math.random() * 10 - 5, 1, -i * 10);
+                const verticalRange = Math.min(window.innerHeight / 100 + level * 2, window.innerHeight / 50); // Increase vertical range but keep within screen bounds
+                const pizzaBoxVerticalRange = { min: minY, max: maxY };
+                obstacle.position.set(Math.random() * 10 - 5, Math.random() * (pizzaBoxVerticalRange.max - pizzaBoxVerticalRange.min) + pizzaBoxVerticalRange.min, -i * 10);
                 obstacle.userData.velocity = new THREE.Vector3(
                     (Math.random() - 0.5) * 0.02,
                     (Math.random() - 0.5) * 0.02,
@@ -281,31 +345,35 @@
             }
 
             function updateObstacles() {
-            obstacles.forEach(obstacle => {
-                obstacle.position.add(obstacle.userData.velocity);
+                obstacles.forEach(obstacle => {
+                    obstacle.position.add(obstacle.userData.velocity);
 
-                // Update rotation
-                obstacle.rotation.x += obstacle.userData.rotationSpeed.x;
-                obstacle.rotation.y += obstacle.userData.rotationSpeed.y;
-                obstacle.rotation.z += obstacle.userData.rotationSpeed.z;
+                    // Update rotation
+                    obstacle.rotation.x += obstacle.userData.rotationSpeed.x;
+                    obstacle.rotation.y += obstacle.userData.rotationSpeed.y;
+                    obstacle.rotation.z += obstacle.userData.rotationSpeed.z;
 
-                // Keep obstacles within bounds
-                if (obstacle.position.x < minX || obstacle.position.x > maxX) {
-                    obstacle.userData.velocity.x *= -1;
-                }
-                if (obstacle.position.y < minY || obstacle.position.y > maxY) {
-                    obstacle.userData.velocity.y *= -1;
-                }
+                    // Keep obstacles within bounds
+                    if (obstacle.position.x < minX || obstacle.position.x > maxX) {
+                        obstacle.userData.velocity.x *= -1;
+                    }
+                    if (obstacle.position.y < minY || obstacle.position.y > maxY) {
+                        obstacle.userData.velocity.y *= -1;
+                    }
+                });
+            }
 
-                // Increase speed and regenerate ground texture for every 50 pizza power points above 420
-                if(pizzaPower > 420 && (pizzaPower - 420) % 50 === 0) {
-                    speed += 0.01; // Increase speed slightly
-                    scene.remove(ground);
-                    ground = createGround();
-                    scene.add(ground);
+            window.addEventListener('resize', () => {
+                const newMinX = -window.innerWidth / 2 / 100;
+                const newMaxX = window.innerWidth / 2 / 100;
+                if (PizzaBox.position.x < newMinX) {
+                    PizzaBox.position.x = newMinX;
+                } else if (PizzaBox.position.x > newMaxX) {
+                    PizzaBox.position.x = newMaxX;
                 }
+                minX = newMinX;
+                maxX = newMaxX;
             });
-        }
 
             helpMenu.style.display = 'none';
             //document.getElementById('tryAgain').style.display = 'none'; // Add try again button
@@ -401,6 +469,80 @@
             return svgTexture;
         }
 
+        let keysPressed = {};
+        let spacebarCooldown = false;
+
+        function onDocumentKeyDown(event) {
+            keysPressed[event.key] = true;
+            handleKeyPress();
+        }
+
+        function onDocumentKeyUp(event) {
+            keysPressed[event.key] = false;
+            if (event.key === ' ') {
+            spacebarCooldown = false; // Reset cooldown when spacebar is released
+            }
+        }
+
+        function handleKeyPress() {
+            const moveDistanceX = 0.2; // Horizontal movement distance
+            const moveDistanceY = 0.1; // Vertical movement distance
+
+            if (keysPressed['ArrowLeft']) { // Left arrow key
+            if (PizzaBox.position.x > minX) {
+                PizzaBox.position.x -= moveDistanceX;
+            } else {
+                showMessage('Reached left limit!');
+            }
+            } 
+            if (keysPressed['ArrowRight']) { // Right arrow key
+            if (PizzaBox.position.x < maxX) {
+                PizzaBox.position.x += moveDistanceX;
+            } else {
+                showMessage('Reached right limit!');
+            }
+            } 
+            if (keysPressed['ArrowUp']) { // Up arrow key
+            if (PizzaBox.position.y < maxY) {
+                PizzaBox.position.y += moveDistanceY;
+            } else {
+                showMessage('Reached upper limit!');
+            }
+            } 
+            if (keysPressed['ArrowDown']) { // Down arrow key
+            if (PizzaBox.position.y > minY) {
+                PizzaBox.position.y -= moveDistanceY;
+            } else {
+                showMessage('Reached lower limit!');
+            }
+            } 
+            if (keysPressed['h'] || keysPressed['H']) { // 'H' key
+            toggleHelpMenu();
+            } 
+            if (keysPressed['f'] || keysPressed['F']) { // 'F' key
+            toggleFPS();
+            } 
+            if (keysPressed['i'] || keysPressed['I']) { // 'I' key
+            toggleInfo();
+            } 
+            if (keysPressed[' '] && !spacebarCooldown) { // Spacebar
+            fireHotDog();
+            spacebarCooldown = true;
+            setTimeout(() => {
+                spacebarCooldown = false;
+            }, 500); // Cooldown period of 500ms
+            } 
+            if (keysPressed['s'] || keysPressed['S']) { // 'S' key
+            fireSausage();
+            } 
+            if (keysPressed['r'] || keysPressed['R']) { // 'R' key
+            location.reload(); // Reload the page to restart the game
+            }
+        }
+
+        document.addEventListener('keydown', onDocumentKeyDown, false);
+        document.addEventListener('keyup', onDocumentKeyUp, false);
+
         function createGround() {
             const geometry = new THREE.PlaneGeometry(100, 100);
             const svgTexture = generateRandomSVGTexture(true);
@@ -409,7 +551,7 @@
             const textureLoader = new THREE.TextureLoader();
             const groundTexture = textureLoader.load(svgUrl);
             groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
-            const repeatFactor = 25; // Ensure the texture is tiled a minimum of 10 times
+            const repeatFactor = 25; // Ensure the texture is tiled a minimum of 25 times
             groundTexture.repeat.set(repeatFactor, repeatFactor);
             const material = new THREE.MeshBasicMaterial({ map: groundTexture, side: THREE.DoubleSide });
             const ground = new THREE.Mesh(geometry, material);
@@ -417,43 +559,100 @@
             return ground;
         }
 
-        function onDocumentKeyDown(event) {
-            let keyCode = event.which;
-            if (keyCode == 37) { // Left arrow key
-                if (PizzaBox.position.x > minX) {
-                    PizzaBox.position.x -= 0.1;
+        // A function that checks if all the obstacles are gone, and then reloads to the next level
+        function checkAndReloadLevel() {
+            if (obstacles.length === 0) {
+            // Increment level counter
+            level++;
+            showLevelOverlay(level);
+
+            // Generate new ground
+            const oldGround = ground;
+            ground = createGround();
+            ground.position.z = -100; // Start far in the distance
+            scene.add(ground);
+
+            // Slide effect
+            const slideDuration = 2000; // 2 seconds
+            const slideStartTime = performance.now();
+            const slideEffect = () => {
+                const elapsedTime = performance.now() - slideStartTime;
+                const slideFactor = Math.min(elapsedTime / slideDuration, 1);
+                ground.position.z = -100 + (100 * slideFactor);
+                if (slideFactor < 1) {
+                requestAnimationFrame(slideEffect);
                 } else {
-                    showMessage('Reached left limit!');
+                scene.remove(oldGround);
                 }
-            } else if (keyCode == 39) { // Right arrow key
-                if (PizzaBox.position.x < maxX) {
-                    PizzaBox.position.x += 0.1;
-                } else {
-                    showMessage('Reached right limit!');
-                }
-            } else if (keyCode == 38) { // Up arrow key
-                if (PizzaBox.position.y < maxY) {
-                    PizzaBox.position.y += 0.1;
-                } else {
-                    showMessage('Reached upper limit!');
-                }
-            } else if (keyCode == 40) { // Down arrow key
-                if (PizzaBox.position.y > minY) {
-                    PizzaBox.position.y -= 0.1;
-                } else {
-                    showMessage('Reached lower limit!');
-                }
-            } else if (keyCode == 72) { // 'H' key
-                toggleHelpMenu();
-            } else if (keyCode == 70) { // 'F' key
-                toggleFPS();
-            } else if (keyCode == 73) { // 'I' key
-                toggleInfo();
-            } else if (keyCode == 32) { // Spacebar
-                fireHotDog();
-            } else if (keyCode == 83) { // 'S' key
-                fireSausage();
+            };
+            requestAnimationFrame(slideEffect);
+
+            // Reload obstacles with increased speed
+            speed += 0.05; // Increase speed
+            const horizontalRange = Math.min(window.innerWidth / 100 + level * 2, window.innerWidth / 50); // Increase range but keep within screen bounds
+            for (let i = 0; i < 10; i++) {
+                const svgTexture = generateRandomSVGTexture(false);
+                const svgBlob = new Blob([svgTexture], { type: 'image/svg+xml' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                const textureLoader = new THREE.TextureLoader();
+                const obstacleTexture = textureLoader.load(svgUrl);
+                obstacleTexture.wrapS = obstacleTexture.wrapT = THREE.RepeatWrapping;
+                obstacleTexture.repeat.set(1, 1);
+
+                const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+                const obstacle = new THREE.Mesh(randomShape, new THREE.MeshBasicMaterial({ map: obstacleTexture }));
+
+                const scaleFactor = Math.random() * 0.5 + 0.5; // Scale between 0.5 and 1
+                obstacle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                const verticalRange = Math.min(window.innerHeight / 100 + level * 2, window.innerHeight / 50); // Increase vertical range but keep within screen bounds
+                obstacle.position.set(Math.random() * horizontalRange - horizontalRange / 2, Math.random() * verticalRange - verticalRange / 2, -50 - i * 10); // Spawn far in the distance
+                obstacle.position.set(Math.random() * horizontalRange - horizontalRange / 2, 1, -50 - i * 10); // Spawn far in the distance
+                obstacle.userData.velocity = new THREE.Vector3(0, 0, speed);
+
+                // Add random rotation
+                obstacle.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+                );
+                obstacle.userData.rotationSpeed = new THREE.Vector3(
+                Math.random() * 0.01,
+                Math.random() * 0.01,
+                Math.random() * 0.01
+                );
+
+                // Add wireframe with dynamic color based on level
+                const wireframeGeometry = new THREE.EdgesGeometry(randomShape);
+                const wireframeColor = new THREE.Color(`hsl(${(level * 30) % 360}, 100%, 50%)`);
+                const wireframeMaterial = new THREE.LineBasicMaterial({ color: wireframeColor });
+                const wireframeMesh = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+                obstacle.add(wireframeMesh);
+
+                obstacles.push(obstacle);
+                scene.add(obstacle);
             }
+            }
+        }
+
+        // Function to show level overlay
+        function showLevelOverlay(level) {
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '50%';
+            overlay.style.left = '50%';
+            overlay.style.transform = 'translate(-50%, -50%)';
+            overlay.style.fontSize = '48px';
+            overlay.style.color = 'white';
+            overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            overlay.style.padding = '20px';
+            overlay.style.borderRadius = '10px';
+            overlay.style.zIndex = '1000';
+            overlay.innerText = `Level ${level}`;
+            document.body.appendChild(overlay);
+
+            setTimeout(() => {
+            document.body.removeChild(overlay);
+            }, 2000);
         }
 
         // Function to fire a HotDog
@@ -465,7 +664,7 @@
             hotDog.position.set(PizzaBox.position.x, PizzaBox.position.y, PizzaBox.position.z - 1);
             hotDogs.push(hotDog);
             scene.add(hotDog);
-            synth.triggerAttackRelease("C5", "16n"); // Play sound when firing hot dog
+            synth.triggerAttackRelease("G5", "16n"); // Play sound when firing hot dog
         }
 
         // Function to fire a larger Sausage
@@ -483,7 +682,7 @@
             scene.add(sausage);
             sausageCount--;
             sausageCounter.innerText = `Sausages: ${sausageCount}`;
-            synth.triggerAttackRelease("A3", "8n"); // Play a deeper sound for sausage
+            synth.triggerAttackRelease("G3", "8n"); // Play a deeper sound for sausage
         }
 
         function toggleHelpMenu() {
@@ -536,25 +735,84 @@
                 explosionPieces.push(piece);
                 scene.add(piece);
             }
-            explodeSynth.triggerAttackRelease("C2", "1n"); // Sound for explosion
-            return explosionPieces;f
+            explodeSynth.triggerAttackRelease("C2", "4n"); // Sound for explosion
+            return explosionPieces;
+        }
+
+        // Function to create grinding sparks
+        function createGrindingSparks(obstacle) {
+            const grindingSparks = [];
+            const scaleFactor = 0.04; // Smaller pieces, more like pixels
+            const colors = [0xff4500, 0xff8c00, 0xffd700, 0xffa500, 0xff6347]; // Hot colors
+
+            for (let i = 0; i < 6; i++) { // Fewer sparks for a less dramatic effect
+            const boxGeometry = new THREE.BoxGeometry(scaleFactor, scaleFactor, scaleFactor);
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            const boxMaterial = new THREE.MeshBasicMaterial({ color: randomColor });
+            const piece = new THREE.Mesh(boxGeometry, boxMaterial);
+            piece.position.copy(obstacle.position);
+
+            // Calculate velocity to fly off in the same direction as the colliding object
+            const direction = obstacle.userData.velocity.clone().normalize();
+            const velocity = direction.multiplyScalar(0.1); // Same direction
+
+            piece.userData.velocity = velocity;
+            piece.userData.shrinkSpeed = 0.04; // Speed at which the pieces shrink
+            grindingSparks.push(piece);
+            scene.add(piece);
+            }
+
+            // Animate grinding sparks
+            grindingSparks.forEach(piece => {
+            const animatePiece = () => {
+                piece.position.add(piece.userData.velocity);
+                piece.scale.multiplyScalar(1 - piece.userData.shrinkSpeed);
+                if (piece.scale.x <= 0.01) {
+                    scene.remove(piece);
+                } else {
+                    requestAnimationFrame(animatePiece);
+                }
+            };
+            animatePiece();
+            });
+
+            // Determine sound based on the shape of the colliding object
+            let note;
+            switch (obstacle.geometry.type) {
+            case 'BoxGeometry':
+                note = "D1";
+                break;
+            case 'SphereGeometry':
+                note = "C2";
+                break;
+            case 'CylinderGeometry':
+                note = "E2";
+                break;
+            case 'DodecahedronGeometry':
+                note = "G2";
+                break;
+            default:
+                note = "A1";
+            }
+            MetalSynth.triggerAttackRelease(note, "8n"); // Play a sound based on the shape
+            return grindingSparks;
         }
 
         function createImplosion(obstacle) {
             const implosionPieces = [];
             const scaleFactor = 0.25; // Scale down the pieces
-            for (let i = 0; i < 8; i++) {
-            const piece = obstacle.clone();
-            piece.scale.set(scaleFactor, scaleFactor, scaleFactor);
-            piece.position.copy(obstacle.position);
-            piece.userData.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 0.1,
-                (Math.random() - 0.5) * 0.1,
-                (Math.random() - 0.5) * 0.1
-            );
-            piece.userData.shrinkSpeed = 0.01; // Speed at which the piecfes shrink
-            implosionPieces.push(piece);
-            scene.add(piece);
+            for (let i = 0; i < 6; i++) {
+                const piece = obstacle.clone();
+                piece.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                piece.position.copy(obstacle.position);
+                piece.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1
+                );
+                piece.userData.shrinkSpeed = 0.05; // Speed at which the pieces shrink
+                implosionPieces.push(piece);
+                scene.add(piece);
             }
 
             // Animate implosion pieces
@@ -563,20 +821,29 @@
                 piece.position.add(piece.userData.velocity);
                 piece.scale.multiplyScalar(1 - piece.userData.shrinkSpeed);
                 if (piece.scale.x <= 0.01) {
-                scene.remove(piece);
+                    scene.remove(piece);
                 } else {
-                requestAnimationFrame(animatePiece);
+                    requestAnimationFrame(animatePiece);
                 }
             };
             animatePiece();
             });
-            
+            explodeSynth.triggerAttackRelease("E3", "8n"); // Sound for collision with torus
             return implosionPieces;
         }
+        
 
         function animate() {
             requestAnimationFrame(animate);
 
+            // Check if you are not dead
+            if (pizzaPower <= 0) {
+                showMessage('Game Over!');
+                gameOver(); // Handle game over (e.g., reset game, show game over screen, etc.)
+            }
+
+            checkAndReloadLevel(); // chekc if this is a level change?
+            
             // Move obstacles
             obstacles.forEach(obstacle => {
                 obstacle.position.z += speed;
@@ -592,17 +859,12 @@
                         pizzaPower++;
                         pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
                         createImplosion(obstacle); // Call createExplosion when torus collides
-                        sausageCount++; // Add a sausage when torus collides
-                        explodeSynth.triggerAttackRelease("E2", "4n"); // Sound for collision with torus
+                        //sausageCount++; // Add a sausage when torus collides
                     } else {
-                        showMessage('Collision detected!');
+                        showMessage('Ouch - Collision Detected!');
                         pizzaPower--;
                         pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
-                        if (pizzaPower <= 0) {
-                            showMessage('Game Over!');
-                            //gameOverScreen.style.display = 'flex';
-                            gameOver(); // Handle game over (e.g., reset game, show game over screen, etc.)
-                        }
+                        createGrindingSparks(obstacle); // Call createGrindingSparks when collision detected
                     }
                 }
             });
@@ -610,7 +872,7 @@
             // Move hotDogs
             hotDogs.forEach((hotDog, index) => {
                 hotDog.position.z -= 0.2;
-                if (hotDog.position.z < -50) {
+                if (hotDog.position.z < -35) {
                     scene.remove(hotDog);
                     hotDogs.splice(index, 1);
                 }
@@ -621,7 +883,9 @@
                         showMessage('HotDog Hit!');
                         scene.remove(hotDog);
                         hotDogs.splice(index, 1);
-                        DogeCoins++;
+
+                        DogeCoins++; // get one coin per hotdog hit
+                        DogeCoinCounter.innerText = `DogeCoins: ${DogeCoins}`; // Add this linece(index, 1);
 
                         // Create explosion effect
                         const explosionPieces = createExplosion(obstacle);
@@ -651,7 +915,7 @@
             sausages.forEach((sausage, index) => {
                 sausage.position.z -= 0.2;
                 sausage.position.y += Math.sin(performance.now() * wobbleSpeed) * wobbleAmplitude;
-                if (sausage.position.z < -50) {
+                if (sausage.position.z < -35) {
                     scene.remove(sausage);
                     sausages.splice(index, 1);
                     sausageCounter.innerText = `Sausages: ${sausageCount}`;
@@ -659,17 +923,19 @@
 
                 // Check for collision with obstacles
                 obstacles.forEach((obstacle, obstacleIndex) => {
-                    if (checkCollision(sausage, obstacle)) {
+                    if (checkCollision(sausage, obstacle)) {  
                         showMessage('Sausage Slam!');
                         scene.remove(sausage);
                         sausages.splice(index, 1);
-                        sausageCounter.innerText = `Sausages: ${sausageCount}`;
-                        DogeCoins += 10;
+                        DogeCoins += 10; // get some DogeCoins for slamming that sausage
 
                         // Create explosion effect
+                        // add extra explosion sound for sausage
+                        explodeSynth.triggerAttackRelease("D3", "8n");
                         const explosionPieces = createExplosion(obstacle);
                         scene.remove(obstacle);
                         obstacles.splice(obstacleIndex, 1);
+
 
                         // Animate explosion pieces
                         explosionPieces.forEach(piece => {
@@ -702,8 +968,19 @@
 
             // Update Info
             if (showInfo) {
-                info.innerText = `PizzaBox Position: (${PizzaBox.position.x.toFixed(2)}, ${PizzaBox.position.y.toFixed(2)}, ${PizzaBox.position.z.toFixed(2)})`;
+                info.innerText = `PizzaBox Position: (${PizzaBox.position.x.toFixed(2)}, ${PizzaBox.position.y.toFixed(2)}, ${PizzaBox.position.z.toFixed(2)})\n`;
+                info.innerText += `Speed: ${speed.toFixed(2)}\n`;
+                info.innerText += `Obstacles: ${obstacles.length}\n`;
+                info.innerText += `HotDogs: ${hotDogs.length}\n`;
+                info.innerText += `Sausages: ${sausages.length}\n`;
+                info.innerText += `Pizza Power: ${pizzaPower}\n`;
+                info.innerText += `Sausage Count: ${sausageCount}\n`;
+                info.innerText += `DogeCoins: ${DogeCoins}\n`;
+                info.innerText += `Level: ${level}`;
             }
+
+            // Upodate other stuff
+            DogeCoinCounter.innerText = `DogeCoins: ${DogeCoins}`; // Add this line
 
             renderer.render(scene, camera);
         }
