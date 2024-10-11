@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sausage Party 3 - Friend Zone</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        #info, #fpsCounter, #helpMenu, #messageBox, #pizzaPowerCounter, #sausageCounter, #DogeCoinCounter {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #info { top: 10px; right: 10px; display: none; }
+        #fpsCounter { top: 10px; left: 10px; display: none; }
+        #helpMenu {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        #messageBox { bottom: 10px; right: 10px; }
+        #pizzaPowerCounter { bottom: 10px; left: 10px; }
+        #sausageCounter { bottom: 50px; left: 10px; }
+        #DogeCoinCounter { bottom: 90px; left: 10px; }
+        #gameOverScreen {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255, 0, 0, 0.7);
+                color: white;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                font-size: 48px;
+                display: none;
+                text-align: center;
+        }
+        #gameOverScreen .gameOverText {
+            margin-bottom: 20px; /* Space between text and button */
+            text-shadow: 2px 2px 4px #000000;
+        }
+        #retryButton {
+            margin-top: 20px;
+            padding: 15px 30px;
+            font-size: 24px;
+            cursor: pointer;
+            background-color: #4CAF50; /* Green background */
+            border: none;
+            color: white;
+            border-radius: 25px;
+            box-shadow: 0 5px #999;
+            transition: all 0.3s ease;
+        }
+        #retryButton:hover {
+            background-color: #45a049;
+        }
+        #retryButton:active {
+            background-color: #3e8e41;
+            box-shadow: 0 2px #666;
+            transform: translateY(3px);
+        }
+    </style>
+</head>
+<body>
+    <div id="info"></div>
+    <div id="fpsCounter"></div>
+    <div id="helpMenu">
+        <h2 style="text-align: center; margin-bottom: 20px;">Help Menu</h2>
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="display: inline-block; text-align: center;">
+                <div style="font-size: 24px;">&uarr;</div>
+                <div>
+                    <div style="display: inline-block; font-size: 24px;">&larr;</div>
+                    <div style="display: inline-block; font-size: 24px;">&darr;</div>
+                    <div style="display: inline-block; font-size: 24px;">&rarr;</div>
+                </div>
+            </div>
+        </div>
+        <p style="text-align: center; margin-bottom: 20px;">Use arrow keys to move the PizzaBox.</p>
+        <hr style="border-color: white; margin-bottom: 20px;">
+        <p style="text-align: center; margin-bottom: 20px;"><strong>Controls:</strong></p>
+        <ul style="list-style-type: none; padding: 0; text-align: center; margin-bottom: 20px;">
+            <li style="margin-bottom: 10px;">Press <strong>'H'</strong> to toggle this help menu.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'F'</strong> to toggle FPS counter.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'I'</strong> to toggle info display.</li>
+            <li style="margin-bottom: 10px;">Press <strong>Spacebar</strong> to fire the HotDog Cannon.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'S'</strong> to fire a larger Sausage.</li>
+            <li style="margin-bottom: 10px;">Press <strong>'R'</strong> to restart the game.</li>
+        </ul>
+        <hr style="border-color: white;">
+    </div>
+    <div id="messageBox">Press 'H' for help</div>
+    <div id="pizzaPowerCounter">Pizza Power: 420</div>
+    <div id="sausageCounter">Sausages: 10</div>
+    <div id="DogeCoinCounter">DogeCoins: 0</div>
+    <div id="gameOverScreen">
+        <div class="gameOverText">Game Over</div>
+        <button id="retryButton">Try Again</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.26/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Tone.js setup 
+        //const synth = new Tone.Synth().toDestination();
+        const synth = new Tone.MonoSynth({
+            oscillator: {
+            type: "sawtooth"
+            },
+            filter: {
+            Q: 2,
+            type: "lowpass",
+            rolloff: -24
+            },
+            envelope: {
+            attack: 0,
+            decay: 0.2,
+            sustain: 0.2,
+            release: 0.5
+            },
+            filterEnvelope: {
+            attack: 0.01,
+            decay: 0.1,
+            sustain: 0.5,
+            release: 0.2,
+            baseFrequency: 200,
+            octaves: 7,
+            exponent: 2
+            }
+        }).toDestination();
+        const explodeSynth = new Tone.MembraneSynth({
+            pitchDecay: 0.05,
+            octaves: 10,
+            oscillator: {
+            type: 'square'
+            },
+            envelope: {
+            attack: 0,
+            decay: 0.3,
+            sustain: 0.1,
+            release: 0.8
+            }
+        }).toDestination();
+        
+        const powerUpSynth = new Tone.FMSynth({
+            modulationIndex: 12.22,
+            envelope: {
+            attack: 0,
+            decay: 0.2,
+            sustain: 0.3,
+            release: 0.9
+            },
+            modulation: {
+            type: "square"
+            },
+            modulationEnvelope: {
+            attack: 0,
+            decay: 0.01,
+            sustain: 1,
+            release: 0.5
+            }
+        }).toDestination();
+
+        const MetalSynth = new Tone.MetalSynth({
+            frequency: 100,
+            envelope: {
+            attack: 0,
+            decay: 0.5,
+            release: 0.3
+            },
+            harmonicity: 3.0,
+            modulationIndex: 20,
+            resonance: 2000,
+            octaves: 1.0
+        }).toDestination();
+
+        let scene, camera, renderer, PizzaBox, ground;
+        let obstacles = [];
+        let hotDogs = [];
+        let sausages = [];
+        let speed = 0.1;
+        let showFPS = false;
+        let showInfo = false;
+        let lastFPSUpdateTime = 0;
+        let lastFrameTime = performance.now();
+        let fpsCounter = document.getElementById('fpsCounter');
+        let info = document.getElementById('info');
+        let helpMenu = document.getElementById('helpMenu');
+        let messageBox = document.getElementById('messageBox');
+        let pizzaPowerCounter = document.getElementById('pizzaPowerCounter');
+        let sausageCounter = document.getElementById('sausageCounter');
+        let gameOverScreen = document.getElementById('gameOverScreen');
+        let pizzaPower = 420;
+        let sausageCount = 10;
+        let DogeCoins = 0;
+        let DogeCoinCounter = document.getElementById('DogeCoinCounter'); // Add this line
+
+        let playSpaceReductionFactor = 120; // Define the reduction factor
+        let minX = (-window.innerWidth / 3 / 100) + (playSpaceReductionFactor / 100); // Calculate minX Adjusted to match the window Width (with a reduction)
+        let maxX = (window.innerWidth / 3 / 100) - (playSpaceReductionFactor / 100); // Calculate maxX Adjusted to match the window Width (with a reduction)
+        const minY = 0.3; // keep everything above the floor
+        // const maxY = 2;
+        let maxY = (window.innerHeight / 2 / 100) - (playSpaceReductionFactor / 100);  // Calculate maxY Adjusted to match the window heigth (with a reduction)
+
+        let level = 1; // Initialize level variable
+
+        // Wobble effect for sausages - maybe we can add to other things too
+        const wobbleSpeed = 0.05;
+        const wobbleAmplitude = 0.1;
+
+        // Define shapes array with geometries
+        const shapes = [
+            new THREE.BoxGeometry(1, 1, 1),
+            new THREE.SphereGeometry(0.5, 32, 32),
+            new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
+            new THREE.DodecahedronGeometry(0.5),
+            new THREE.TorusGeometry(0.5, 0.2, 16, 100)
+        ];
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // PizzaBox (Simple Pizza Box Shape)
+            let geometry = new THREE.BoxGeometry(1, 0.1, 1); // Main body (square shape)
+            let material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            PizzaBox = new THREE.Mesh(geometry, material);
+            PizzaBox.position.y = 1;
+            const pizzaSVG = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+                <rect width="100" height="100" fill="white" />
+                <circle cx="50" cy="50" r="50" fill="#f4a460" />
+                <circle cx="50" cy="50" r="43" fill="#FFD700" />
+                <circle cx="28" cy="32" r="7.2" fill="#b22222" />
+                <circle cx="72" cy="28" r="6.8" fill="#b22222" />
+                <circle cx="22" cy="68" r="7.1" fill="#b22222" />
+                <circle cx="78" cy="72" r="6.9" fill="#b22222" />
+                <circle cx="48" cy="18" r="7.3" fill="#b22222" />
+                <circle cx="52" cy="82" r="6.7" fill="#b22222" />
+                <circle cx="18" cy="52" r="7.2" fill="#b22222" />
+                <circle cx="82" cy="48" r="6.8" fill="#b22222" />
+                <circle cx="38" cy="62" r="7.1" fill="#b22222" />
+                <circle cx="62" cy="38" r="6.9" fill="#b22222" />
+                <circle cx="33" cy="43" r="7.3" fill="#b22222" />
+                <circle cx="67" cy="57" r="6.7" fill="#b22222" />
+            </svg>
+            `;
+            const pizzaBlob = new Blob([pizzaSVG], { type: 'image/svg+xml' });
+            const pizzaUrl = URL.createObjectURL(pizzaBlob);
+            const pizzaTexture = new THREE.TextureLoader().load(pizzaUrl);
+            pizzaTexture.wrapS = pizzaTexture.wrapT = THREE.RepeatWrapping;
+            pizzaTexture.repeat.set(1, 1);
+
+            const pizzaTopMaterial = new THREE.MeshBasicMaterial({ map: pizzaTexture });
+            const pizzaSideMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+            const pizzaMaterials = [
+                pizzaSideMaterial, // Right side
+                pizzaSideMaterial, // Left side
+                pizzaTopMaterial, // Top side (pizza top)
+                pizzaSideMaterial, // Bottom side
+                pizzaSideMaterial,  // Front side
+                pizzaSideMaterial  // Back side
+            ];
+
+            PizzaBox = new THREE.Mesh(geometry, pizzaMaterials);
+
+            // Add wireframe
+            const wireframeGeometry = new THREE.EdgesGeometry(geometry);
+            const wireframeMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const wireframeMesh = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+            PizzaBox.add(wireframeMesh);
+
+            scene.add(PizzaBox);
+
+            // Ground
+            ground = createGround();
+            scene.add(ground);
+
+            camera.position.z = 5;
+            camera.position.y = 2;
+
+            // Obstacles
+            const shapes = [
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.SphereGeometry(0.5, 32, 32),
+                //new THREE.ConeGeometry(0.5, 1, 32),
+                new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
+                new THREE.DodecahedronGeometry(0.5, 0),
+                new THREE.TorusGeometry(0.5, 0.2, 16, 100)
+            ];
+
+
+            // Load the Obstacles the first time
+            for (let i = 0; i < 10; i++) {
+                const svgTexture = generateRandomSVGTexture(false);
+                const svgBlob = new Blob([svgTexture], { type: 'image/svg+xml' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                const textureLoader = new THREE.TextureLoader();
+                const obstacleTexture = textureLoader.load(svgUrl);
+                obstacleTexture.wrapS = obstacleTexture.wrapT = THREE.RepeatWrapping;
+                obstacleTexture.repeat.set(1, 1);
+
+                const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+                const obstacle = new THREE.Mesh(
+                    randomShape,
+                    new THREE.MeshBasicMaterial({ map: obstacleTexture })
+                );
+
+                const scaleFactor = Math.random() * 0.5 + 0.5; // Scale between 0.5 and 1
+                obstacle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+                // attmpt to make objects vertical distrobution wider as level goes up.
+                // let verticalPlayFieldDevider;
+                // if (level > 10) {
+                //     verticalPlayFieldDevider = 1; // If level is greater than 10, result is set to 10
+                // } else {
+                //     verticalPlayFieldDevider = Math.max(10 - level, 1); // For level between 1 and 10, subtract 10 but ensure at least 1
+                // }
+                let verticalPlayFieldDevider = Math.max(10 - level, 1); // For level between 1 and 10, subtract level from 10 but ensure at least 1
+
+                // Set obstacle position
+                obstacle.position.set(
+                    Math.random() * (maxX - minX) + minX,//Math.random() * 10 - 5,
+                    ( Math.random() * (maxY - minY) / verticalPlayFieldDevider ) + minY, // attmpt to make objects vertical distrobution wider as level goes up.
+                    -i * 10
+                );
+
+                // set obstacle velocities
+                obstacle.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.02,
+                    (Math.random() - 0.5) * 0.02,
+                    0
+                );
+
+                // Add random rotation
+                obstacle.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                obstacle.userData.rotationSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01
+                );
+
+                obstacles.push(obstacle);
+                scene.add(obstacle);
+            }
+
+            function updateObstacles() {
+                obstacles.forEach(obstacle => {
+                    obstacle.position.add(obstacle.userData.velocity);
+
+                    // Update rotation
+                    obstacle.rotation.x += obstacle.userData.rotationSpeed.x;
+                    obstacle.rotation.y += obstacle.userData.rotationSpeed.y;
+                    obstacle.rotation.z += obstacle.userData.rotationSpeed.z;
+
+                    // Keep obstacles within bounds
+                    if (obstacle.position.x < minX || obstacle.position.x > maxX) {
+                        obstacle.userData.velocity.x *= -1;
+                    }
+                    if (obstacle.position.y < minY || obstacle.position.y > maxY) {
+                        obstacle.userData.velocity.y *= -1;
+                    }
+                });
+            }
+
+            window.addEventListener('resize', () => {
+                const newMinX = -window.innerWidth / 2 / 100;
+                const newMaxX = window.innerWidth / 2 / 100;
+                if (PizzaBox.position.x < newMinX) {
+                    PizzaBox.position.x = newMinX;
+                } else if (PizzaBox.position.x > newMaxX) {
+                    PizzaBox.position.x = newMaxX;
+                }
+                minX = newMinX;
+                maxX = newMaxX;
+            });
+
+            helpMenu.style.display = 'none';
+            //document.getElementById('tryAgain').style.display = 'none'; // Add try again button
+            document.addEventListener('keydown', onDocumentKeyDown, false);
+            animate();
+        }
+
+        // Function to shift hue of a color
+        function shiftHue(color, shiftAmount) {
+            // Convert color name to hex if it's a named color
+            const hex = color.startsWith('#') ? color : 
+                (['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'cyan', 'magenta'].indexOf(color) !== -1) 
+                ? { 'red': '#FF0000', 'green': '#00FF00', 'blue': '#0000FF', 'yellow': '#FFFF00', 'purple': '#800080', 'orange': '#FFA500', 'cyan': '#00FFFF', 'magenta': '#FF00FF' }[color]
+                : '#FFFFFF'; // default to white if unknown
+            
+            // Convert hex to RGB then to HSL, shift the hue, then convert back
+            let r = parseInt(hex.slice(1, 3), 16) / 255,
+                g = parseInt(hex.slice(3, 5), 16) / 255,
+                b = parseInt(hex.slice(5, 7), 16) / 255;
+            
+            // Convert RGB to HSL
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if(max === min) {
+                h = s = 0; // achromatic
+            } else {
+                let d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch(max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+
+            // Shift hue
+            h = (h + shiftAmount / 360) % 1;
+
+            // Convert back to RGB
+            let p, q;
+            if(l < 0.5) q = l * (1 + s);
+            else q = l + s - l * s;
+            p = 2 * l - q;
+
+            r = hue2rgb(p, q, h + 1/3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1/3);
+
+            function hue2rgb(p, q, t) {
+                if(t < 0) t += 1;
+                if(t > 1) t -= 1;
+                if(t < 1/6) return p + (q - p) * 6 * t;
+                if(t < 1/2) return q;
+                if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            }
+
+            // Convert back to hex
+            return `#${Math.round(r * 255).toString(16).padStart(2, '0')}${Math.round(g * 255).toString(16).padStart(2, '0')}${Math.round(b * 255).toString(16).padStart(2, '0')}`;
+        }
+
+
+        // Generate cool textures on the fly -- Big Code Block move to another file
+        function generateRandomSVGTexture(isGround = true) {
+            const svgSize = Math.min(window.innerWidth, window.innerHeight) / 10;
+            const shapes = ['rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'path'];
+            //const colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'cyan', 'magenta'];
+            // Base colors
+            const baseColors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'cyan', 'magenta'];
+            // Generate colors based on level
+            const colors = baseColors.map(color => shiftHue(color, level * 10)); // Shift hue by level * 10 degrees
+            const randomShape = () => shapes[Math.floor(Math.random() * shapes.length)];
+            const randomColor = () => colors[Math.floor(Math.random() * colors.length)];
+            const randomCoord = (max) => Math.floor(Math.random() * max);
+            const randomSize = (max) => Math.floor(Math.random() * max / 2) + 10;
+            const randomPath = () => {
+                const commands = ['M', 'L', 'C', 'Q', 'Z'];
+                let path = '';
+                for (let i = 0; i < 5; i++) {
+                    const command = commands[Math.floor(Math.random() * commands.length)];
+                    path += `${command}${randomCoord(svgSize)}${randomCoord(svgSize)}`;
+                    if (command === 'C' || command === 'Q') {
+                        path += `${randomCoord(svgSize)} ${randomCoord(svgSize)} `;
+                    }
+                }
+                return path;
+            };
+
+            let svgContent = '';
+            const shapeCount = isGround ? 10 : 5;
+            for (let i = 0; i < shapeCount; i++) {
+                const shape = randomShape();
+                switch (shape) {
+                    case 'rect':
+                        svgContent += `<rect x="${randomCoord(svgSize)}" y="${randomCoord(svgSize)}" width="${randomSize(svgSize)}" height="${randomSize(svgSize)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'circle':
+                        svgContent += `<circle cx="${randomCoord(svgSize)}" cy="${randomCoord(svgSize)}" r="${randomSize(svgSize / 2)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'ellipse':
+                        svgContent += `<ellipse cx="${randomCoord(svgSize)}" cy="${randomCoord(svgSize)}" rx="${randomSize(svgSize / 2)}" ry="${randomSize(svgSize / 2)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'line':
+                        svgContent += `<line x1="${randomCoord(svgSize)}" y1="${randomCoord(svgSize)}" x2="${randomCoord(svgSize)}" y2="${randomCoord(svgSize)}" stroke="${randomColor()}" stroke-width="2" />`;
+                        break;
+                    case 'polygon':
+                        svgContent += `<polygon points="${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)}" fill="${randomColor()}" />`;
+                        break;
+                    case 'polyline':
+                        svgContent += `<polyline points="${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)} ${randomCoord(svgSize)},${randomCoord(svgSize)}" fill="none" stroke="${randomColor()}" stroke-width="2" />`;
+                        break;
+                    case 'path':
+                        svgContent += `<path d="${randomPath()}" fill="none" stroke="${randomColor()}" stroke-width="2" />`;
+                        break;
+                }
+            }
+
+            if (isGround) {
+                // Add more visually complex seamless edges for ground
+                const edgeShapes = ['rect', 'circle', 'ellipse'];
+                for (let i = 0; i < 5; i++) {
+                    const shape = edgeShapes[Math.floor(Math.random() * edgeShapes.length)];
+                    const color = randomColor();
+                    switch (shape) {
+                        case 'rect':
+                            svgContent += `<rect x="0" y="${randomCoord(svgSize)}" width="5" height="${randomSize(svgSize)}" fill="${color}" />`;
+                            svgContent += `<rect x="${svgSize - 5}" y="${randomCoord(svgSize)}" width="5" height="${randomSize(svgSize)}" fill="${color}" />`;
+                            svgContent += `<rect x="${randomCoord(svgSize)}" y="0" width="${randomSize(svgSize)}" height="5" fill="${color}" />`;
+                            svgContent += `<rect x="${randomCoord(svgSize)}" y="${svgSize - 5}" width="${randomSize(svgSize)}" height="5" fill="${color}" />`;
+                            break;
+                        case 'circle':
+                            svgContent += `<circle cx="2.5" cy="${randomCoord(svgSize)}" r="2.5" fill="${color}" />`;
+                            svgContent += `<circle cx="${svgSize - 2.5}" cy="${randomCoord(svgSize)}" r="2.5" fill="${color}" />`;
+                            svgContent += `<circle cx="${randomCoord(svgSize)}" cy="2.5" r="2.5" fill="${color}" />`;
+                            svgContent += `<circle cx="${randomCoord(svgSize)}" cy="${svgSize - 2.5}" r="2.5" fill="${color}" />`;
+                            break;
+                        case 'ellipse':
+                            svgContent += `<ellipse cx="2.5" cy="${randomCoord(svgSize)}" rx="2.5" ry="${randomSize(svgSize / 4)}" fill="${color}" />`;
+                            svgContent += `<ellipse cx="${svgSize - 2.5}" cy="${randomCoord(svgSize)}" rx="2.5" ry="${randomSize(svgSize / 4)}" fill="${color}" />`;
+                            svgContent += `<ellipse cx="${randomCoord(svgSize)}" cy="2.5" rx="${randomSize(svgSize / 4)}" ry="2.5" fill="${color}" />`;
+                            svgContent += `<ellipse cx="${randomCoord(svgSize)}" cy="${svgSize - 2.5}" rx="${randomSize(svgSize / 4)}" ry="2.5" fill="${color}" />`;
+                            break;
+                    }
+                }
+            }
+
+            const svgTexture = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">
+            ${svgContent}
+            </svg>
+            `;
+            return svgTexture;
+        }
+
+        let keysPressed = {};
+        let spacebarCooldown = false;
+        let rapidFireDelayMilSec = 150;
+
+        function onDocumentKeyDown(event) {
+            keysPressed[event.key] = true;
+            handleKeyPress();
+        }
+
+        function onDocumentKeyUp(event) {
+            keysPressed[event.key] = false;
+            if (event.key === ' ') {
+            spacebarCooldown = false; // Reset cooldown when spacebar is released
+            }
+        }
+
+        function handleKeyPress() {
+            const moveDistanceX = 0.2; // Horizontal movement distance
+            const moveDistanceY = 0.1; // Vertical movement distance
+
+            if (keysPressed['ArrowLeft']) { // Left arrow key
+            if (PizzaBox.position.x > minX) {
+                PizzaBox.position.x -= moveDistanceX;
+            } else {
+                showMessage('Reached left limit!');
+            }
+            } 
+            if (keysPressed['ArrowRight']) { // Right arrow key
+            if (PizzaBox.position.x < maxX) {
+                PizzaBox.position.x += moveDistanceX;
+            } else {
+                showMessage('Reached right limit!');
+            }
+            } 
+            if (keysPressed['ArrowUp']) { // Up arrow key
+            if (PizzaBox.position.y < maxY) {
+                PizzaBox.position.y += moveDistanceY;
+            } else {
+                showMessage('Reached upper limit!');
+            }
+            } 
+            if (keysPressed['ArrowDown']) { // Down arrow key
+            if (PizzaBox.position.y > minY) {
+                PizzaBox.position.y -= moveDistanceY;
+            } else {
+                showMessage('Reached lower limit!');
+            }
+            } 
+            if (keysPressed['h'] || keysPressed['H']) { // 'H' key
+            toggleHelpMenu();
+            } 
+            if (keysPressed['f'] || keysPressed['F']) { // 'F' key
+            toggleFPS();
+            } 
+            if (keysPressed['i'] || keysPressed['I']) { // 'I' key
+            toggleInfo();
+            } 
+            if (keysPressed[' '] && !spacebarCooldown) { // Spacebar
+            fireHotDog();
+            spacebarCooldown = true;
+            setTimeout(() => {
+                spacebarCooldown = false;
+            }, rapidFireDelayMilSec); // Cooldown period of rapidFireDelayMilSec 
+            } 
+            if (keysPressed['s'] || keysPressed['S']) { // 'S' key
+            fireSausage();
+            } 
+            if (keysPressed['r'] || keysPressed['R']) { // 'R' key
+            location.reload(); // Reload the page to restart the game
+            }
+            if (keysPressed['n'] || keysPressed['N']) { // 'N' key
+            blowUpAllObjects(); // Nuke Everything blowUpObstacles
+            } 
+            if (keysPressed['b'] || keysPressed['B']) { // 'N' key
+            blowUpObstacles(); // blowUp All Obstacles
+            } 
+        }
+
+        document.addEventListener('keydown', onDocumentKeyDown, false);
+        document.addEventListener('keyup', onDocumentKeyUp, false);
+
+        function createGround() {
+            const geometry = new THREE.PlaneGeometry(100, 100);
+            const svgTexture = generateRandomSVGTexture(true);
+            const svgBlob = new Blob([svgTexture], { type: 'image/svg+xml' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+            const textureLoader = new THREE.TextureLoader();
+            const groundTexture = textureLoader.load(svgUrl);
+            groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+            const repeatFactor = 25; // Ensure the texture is tiled a minimum of 25 times
+            groundTexture.repeat.set(repeatFactor, repeatFactor);
+            const material = new THREE.MeshBasicMaterial({ map: groundTexture, side: THREE.DoubleSide });
+            const ground = new THREE.Mesh(geometry, material);
+            ground.rotation.x = Math.PI / 2;
+            return ground;
+        }
+
+        // A function that checks if all the obstacles are gone, and then reloads to the next level
+        function checkAndReloadLevel() {
+            if (obstacles.length === 0) {
+            // Increment level counter
+            level++;
+            showLevelOverlay(level);
+
+            // Generate new ground
+            const oldGround = ground;
+            ground = createGround();
+            ground.position.z = -100; // Start far in the distance
+            scene.add(ground);
+
+            // Slide effect
+            const slideDuration = 2000; // 2 seconds
+            const slideStartTime = performance.now();
+            const slideEffect = () => {
+                const elapsedTime = performance.now() - slideStartTime;
+                const slideFactor = Math.min(elapsedTime / slideDuration, 1);
+                ground.position.z = -100 + (100 * slideFactor);
+                if (slideFactor < 1) {
+                requestAnimationFrame(slideEffect);
+                } else {
+                scene.remove(oldGround);
+                }
+            };
+            requestAnimationFrame(slideEffect);
+
+            // Reload obstacles with increased speed
+            speed += 0.05; // Increase speed
+            const horizontalRange = Math.min(window.innerWidth / 100 + level * 2, window.innerWidth / 50); // Increase range but keep within screen bounds
+            for (let i = 0; i < 10; i++) {
+                const svgTexture = generateRandomSVGTexture(false);
+                const svgBlob = new Blob([svgTexture], { type: 'image/svg+xml' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                const textureLoader = new THREE.TextureLoader();
+                const obstacleTexture = textureLoader.load(svgUrl);
+                obstacleTexture.wrapS = obstacleTexture.wrapT = THREE.RepeatWrapping;
+                obstacleTexture.repeat.set(1, 1);
+
+                const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+                const obstacle = new THREE.Mesh(randomShape, new THREE.MeshBasicMaterial({ map: obstacleTexture }));
+
+                const scaleFactor = Math.random() * 0.5 + 0.5; // Scale between 0.5 and 1
+                obstacle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                // const verticalRange = Math.min(window.innerHeight / 100 + level * 2, window.innerHeight / 50); // Increase vertical range but keep within screen bounds
+                // obstacle.position.set(Math.random() * horizontalRange - horizontalRange / 2, Math.random() * verticalRange - verticalRange / 2, -50 - i * 10); // Spawn far in the distance
+                // obstacle.position.set(Math.random() * horizontalRange - horizontalRange / 2, 1, -50 - i * 10); // Spawn far in the distance
+                // obstacle.userData.velocity = new THREE.Vector3(0, 0, speed);
+
+                // variable vertical spawning based on the level number
+                // const verticalRange = Math.min(window.innerHeight / 100 + level * 2, window.innerHeight / 50); // Increase vertical range but keep within screen bounds
+                // const pizzaBoxVerticalRange = { min: minY, max: maxY };
+                // obstacle.position.set(Math.random() * 10 - 5, Math.random() * (pizzaBoxVerticalRange.max - pizzaBoxVerticalRange.min) + pizzaBoxVerticalRange.min, -i * 10);
+                // obstacle.position.set(Math.random() * horizontalRange - horizontalRange / 2, 1, -50 - i * 10); // Spawn far in the distance
+                
+                // attmpt to make objects vertical distrobution wider as level goes up.
+                // let verticalPlayFieldDevider;
+                // if (level > 10) {
+                //     verticalPlayFieldDevider = 10; // If level is greater than 10, result is set to 10
+                // } else {
+                //     verticalPlayFieldDevider = Math.max(level - 10, 1); // For level between 1 and 10, subtract 10 but ensure at least 1
+                // }
+                let verticalPlayFieldDevider = Math.max(10 - level, 1); // For level between 1 and 10, subtract level from 10 but ensure at least 1
+
+                // Set obstacle position
+                obstacle.position.set(
+                    Math.random() * (maxX - minX) + minX,//Math.random() * 10 - 5,
+                    ( Math.random() * (maxY - minY) / verticalPlayFieldDevider ) + minY, // attmpt to make objects vertical distrobution wider as level goes up.
+                    -i * 10
+                );
+
+                obstacle.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.02,
+                    (Math.random() - 0.5) * 0.02,
+                    0
+                );
+
+                // Add random rotation
+                obstacle.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+                );
+                
+                obstacle.userData.rotationSpeed = new THREE.Vector3(
+                Math.random() * 0.01,
+                Math.random() * 0.01,
+                Math.random() * 0.01
+                );
+
+                // Add wireframe with dynamic color based on level
+                const wireframeGeometry = new THREE.EdgesGeometry(randomShape);
+                const wireframeColor = new THREE.Color(`hsl(${(level * 30) % 360}, 100%, 50%)`);
+                const wireframeMaterial = new THREE.LineBasicMaterial({ color: wireframeColor });
+                const wireframeMesh = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+                obstacle.add(wireframeMesh);
+
+                obstacles.push(obstacle);
+                scene.add(obstacle);
+            }
+            }
+        }
+
+        // Function to show level overlay
+        function showLevelOverlay(level) {
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '50%';
+            overlay.style.left = '50%';
+            overlay.style.transform = 'translate(-50%, -50%)';
+            overlay.style.fontSize = '48px';
+            overlay.style.color = 'white';
+            overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            overlay.style.padding = '20px';
+            overlay.style.borderRadius = '10px';
+            overlay.style.zIndex = '1000';
+            overlay.innerText = `Level ${level}`;
+            document.body.appendChild(overlay);
+
+            setTimeout(() => {
+            document.body.removeChild(overlay);
+            }, 2000);
+        }
+
+        // Function to fire a HotDog
+        function fireHotDog() { 
+            const hotDogGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 32);
+            const hotDogMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const hotDog = new THREE.Mesh(hotDogGeometry, hotDogMaterial);
+            hotDog.rotation.x = Math.PI / 2;
+            hotDog.position.set(PizzaBox.position.x, PizzaBox.position.y, PizzaBox.position.z - 1);
+            hotDogs.push(hotDog);
+            scene.add(hotDog);
+            synth.triggerAttackRelease("G5", "16n"); // Play sound when firing hot dog
+        }
+
+        // Function to fire a larger Sausage
+        function fireSausage() { 
+            if (sausageCount <= 0) {
+                showMessage('No more sausages left!');
+                return;
+            }
+            const sausageGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2, 32);
+            const sausageMaterial = new THREE.MeshBasicMaterial({ color: 0xffa500 });
+            const sausage = new THREE.Mesh(sausageGeometry, sausageMaterial);
+            sausage.rotation.x = Math.PI / 2;
+            sausage.position.set(PizzaBox.position.x, PizzaBox.position.y, PizzaBox.position.z - 1);
+            sausages.push(sausage);
+            scene.add(sausage);
+            sausageCount--;
+            sausageCounter.innerText = `Sausages: ${sausageCount}`;
+            synth.triggerAttackRelease("G3", "8n"); // Play a deeper sound for sausage
+        }
+
+        function toggleHelpMenu() {
+            helpMenu.style.display = helpMenu.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function toggleFPS() {
+            showFPS = !showFPS;
+            fpsCounter.style.display = showFPS ? 'block' : 'none';
+        }
+
+        function toggleInfo() {
+            showInfo = !showInfo;
+            info.style.display = showInfo ? 'block' : 'none';
+        }
+
+        function showMessage(message) {
+            messageBox.innerText = message;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 2000);
+        }
+
+        function checkCollision(object1, object2) {
+            const box1 = new THREE.Box3().setFromObject(object1);
+            const box2 = new THREE.Box3().setFromObject(object2);
+            return box1.intersectsBox(box2);
+        }
+
+        function gameOver() {
+            gameOverScreen.style.display = 'flex';
+            document.getElementById('retryButton').onclick = function() {
+                location.reload(); // Reload the page to restart the game
+            };
+        }
+
+        function createExplosion(obstacle) {
+            const explosionPieces = [];
+            const scaleFactor = 0.25; // Scale down the pieces
+            for (let i = 0; i < 8; i++) {
+                const piece = obstacle.clone();
+                piece.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                piece.position.copy(obstacle.position);
+                piece.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1
+                );
+                explosionPieces.push(piece);
+                scene.add(piece);
+            }
+            explodeSynth.triggerAttackRelease("C2", "4n"); // Sound for explosion
+            return explosionPieces;
+        }
+
+        // testing new function for explosing thats all in one like implosion
+        function createCompleteExplosion(obstacle) {
+            const explosionPieces = [];
+            const scaleFactor = 0.25; // Scale down the pieces
+            for (let i = 0; i < 12; i++) {
+                const piece = obstacle.clone();
+                piece.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                piece.position.copy(obstacle.position);
+                piece.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * -0.25 // hopefully they fly away from pizza box
+                );
+                explosionPieces.push(piece);
+                scene.add(piece);
+            }
+
+            // Animate explosion pieces
+            explosionPieces.forEach(piece => {
+                const animatePiece = () => {
+                    piece.position.add(piece.userData.velocity);
+                    piece.rotation.x += 0.1;
+                    piece.rotation.y += 0.1;
+                    piece.rotation.z += 0.1;
+                    if (piece.position.distanceTo(obstacle.position) > 2) {
+                        scene.remove(piece);
+                    } else {
+                        requestAnimationFrame(animatePiece);
+                    }
+                };
+                animatePiece();
+            });
+
+            explodeSynth.triggerAttackRelease("D2", "4n"); // Sound for explosion
+            explodeSynth.triggerAttackRelease("G2", "8n");
+            return explosionPieces;
+        }
+
+        // Function to create grinding sparks
+        function createGrindingSparks(obstacle) {
+            const grindingSparks = [];
+            const scaleFactor = 0.04; // Smaller pieces, more like pixels
+            const colors = [0xff4500, 0xff8c00, 0xffd700, 0xffa500, 0xff6347]; // Hot colors
+
+            for (let i = 0; i < 6; i++) { // Fewer sparks for a less dramatic effect
+            const boxGeometry = new THREE.BoxGeometry(scaleFactor, scaleFactor, scaleFactor);
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            const boxMaterial = new THREE.MeshBasicMaterial({ color: randomColor });
+            const piece = new THREE.Mesh(boxGeometry, boxMaterial);
+            piece.position.copy(obstacle.position);
+
+            // Calculate velocity to fly off in the same direction as the colliding object
+            const direction = obstacle.userData.velocity.clone().normalize();
+            const velocity = direction.multiplyScalar(0.1); // Same direction
+
+            piece.userData.velocity = velocity;
+            piece.userData.shrinkSpeed = 0.04; // Speed at which the pieces shrink
+            grindingSparks.push(piece);
+            scene.add(piece);
+            }
+
+            // Animate grinding sparks
+            grindingSparks.forEach(piece => {
+            const animatePiece = () => {
+                piece.position.add(piece.userData.velocity);
+                piece.scale.multiplyScalar(1 - piece.userData.shrinkSpeed);
+                if (piece.scale.x <= 0.01) {
+                    scene.remove(piece);
+                } else {
+                    requestAnimationFrame(animatePiece);
+                }
+            };
+            animatePiece();
+            });
+
+            // Determine sound based on the shape of the colliding object
+            let note;
+            switch (obstacle.geometry.type) {
+            case 'BoxGeometry':
+                note = "D1";
+                break;
+            case 'SphereGeometry':
+                note = "C2";
+                break;
+            case 'CylinderGeometry':
+                note = "E2";
+                break;
+            case 'DodecahedronGeometry':
+                note = "G2";
+                break;
+            default:
+                note = "A1";
+            }
+            MetalSynth.triggerAttackRelease(note, "8n"); // Play a sound based on the shape
+            return grindingSparks;
+        }
+
+        function createImplosion(obstacle) {
+            const implosionPieces = [];
+            const scaleFactor = 0.25; // Scale down the pieces
+            for (let i = 0; i < 6; i++) {
+                const piece = obstacle.clone();
+                piece.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                piece.position.copy(obstacle.position);
+                piece.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1
+                );
+                piece.userData.shrinkSpeed = 0.05; // Speed at which the pieces shrink
+                implosionPieces.push(piece);
+                scene.add(piece);
+            }
+
+            // Animate implosion pieces
+            implosionPieces.forEach(piece => {
+            const animatePiece = () => {
+                piece.position.add(piece.userData.velocity);
+                piece.scale.multiplyScalar(1 - piece.userData.shrinkSpeed);
+                if (piece.scale.x <= 0.01) {
+                    scene.remove(piece);
+                } else {
+                    requestAnimationFrame(animatePiece);
+                }
+            };
+            animatePiece();
+            });
+            explodeSynth.triggerAttackRelease("E3", "8n"); // Sound for collision with torus
+            return implosionPieces;
+        }
+
+        // Call this function when you want to blow up only the obstacles
+        function blowUpObstacles() {
+            // Process only obstacles
+            obstacles.forEach((obstacle, index) => {
+                if (obstacle) {
+                    createCompleteExplosion(obstacle);
+                    scene.remove(obstacle);
+                    obstacles.splice(index, 1);
+
+                    // Dispose of geometry and materials if necessary
+                    if (obstacle.geometry) obstacle.geometry.dispose();
+                    if (obstacle.material) {
+                        if (Array.isArray(obstacle.material)) {  // Check if it's an array of materials
+                            obstacle.material.forEach(material => material.dispose());
+                        } else {
+                            obstacle.material.dispose();
+                        }
+                    }
+                }
+            });
+
+            // Clear the obstacles array after processing each obstacle
+            obstacles.length = 0;
+        }
+
+        // Call this function when you want to blow up everything
+        function blowUpAllObjects() {
+            // Combine all object arrays into one for iteration
+            const allObjects = [...obstacles, ...hotDogs, ...sausages];
+            
+            // Store indices of objects to avoid issues with array length changes during iteration
+            const indicesToRemove = {
+                obstacles: [],
+                hotDogs: [],
+                sausages: []
+            };
+
+            // Process each object
+            allObjects.forEach((object, index) => {
+                if (object) {
+              
+                    
+                    // Determine which array the object belongs to for removal
+                    let arrayName;
+                    let arrayIndex = index;
+                    if (index < obstacles.length) {
+                        arrayName = 'obstacles';
+                    } else {
+                        arrayIndex -= obstacles.length;
+                        if (arrayIndex < hotDogs.length) {
+                            arrayName = 'hotDogs';
+                        } else {
+                            arrayIndex -= hotDogs.length;
+                            arrayName = 'sausages';
+                        }
+                    }
+
+                    // Mark for removal from its respective array
+                    indicesToRemove[arrayName].push(arrayIndex);
+                    
+                    // blow the thing up
+                    createCompleteExplosion(object);
+
+                    // Remove from Three.js scene
+                    scene.remove(object);
+                    
+                    // Optional: If you need to dispose of geometry and materials to free resources
+                    // if (object.geometry) object.geometry.dispose();
+                    // if (object.material) {
+                    //     if (object.material.length) {  // If it's an array of materials
+                    //         object.material.forEach(material => material.dispose());
+                    //     } else {
+                    //         object.material.dispose();
+                    //     }
+                    // }
+                }
+            });
+
+            // Remove objects from arrays in reverse order to not affect the index of subsequent items
+            Object.keys(indicesToRemove).forEach(arrayName => {
+                indicesToRemove[arrayName].sort((a, b) => b - a).forEach(index => {
+                    eval(arrayName).splice(index, 1); // Using eval here for dynamic array name
+                });
+            });
+        }
+
+        
+        // Before the animation loop, initialize the vertical variation speed and max position
+        const verticalVariationSpeed = 0.05 //* (Math.random() * level); // Adjust this value to change how fast obstacles move up and down
+        const maxVerticalPosition = ( Math.random() * (maxY - minY) / Math.max(10 - level, 1) ) + minY; // Adjust this to set the vertical boundary for obstacles
+       
+        // Define these variables before the animation loop starts
+        const horizontalVariationSpeed = 0.05; // Adjust this value to change how fast obstacles move side to side
+        const maxHorizontalPosition = 5 //( Math.random() * (maxX - minX) / Math.max(10 - level, 1) ) + minX; // Adjust this to set the horizontal boundary for obstacles
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Check if you are not dead
+            if (pizzaPower <= 0) {
+                showMessage('Game Over!');
+                gameOver(); // Handle game over (e.g., reset game, show game over screen, etc.)
+            }
+
+            checkAndReloadLevel(); // chekc if this is a level change?
+            
+            // Move obstacles
+            obstacles.forEach(obstacle => {
+                obstacle.position.z += speed;
+                if (obstacle.position.z > 5) {
+                    obstacle.position.z = -50;
+                    // obstacle.position.x = Math.random() * 10 - 5;
+
+                    // Reset vertical offset when the obstacle is repositioned
+                    obstacle.userData.verticalOffset = (Math.random() * 2 - 1) * verticalVariationSpeed;
+
+                     // Reset horizontal position and movement direction when the obstacle is repositioned
+                    obstacle.userData.horizontalSpeed = (Math.random() * 2 - 1) * horizontalVariationSpeed;
+        
+                }
+
+                
+                // Add vertical movement
+                const verticalSpeed = obstacle.userData.verticalOffset || 0; // Default to 0 if not set yet
+                obstacle.position.y += verticalSpeed;
+
+                // Keep obstacle within some vertical bounds (optional)
+                if (obstacle.position.y > maxVerticalPosition) {
+                    obstacle.position.y = maxVerticalPosition;
+                    obstacle.userData.verticalOffset *= -1; // Reverse direction
+                } else if (obstacle.position.y < minY) {
+                    obstacle.position.y = minY;
+                    obstacle.userData.verticalOffset *= -1; // Reverse direction
+                }
+
+                // Add horizontal movement
+                // const horizontalSpeed = obstacle.userData.horizontalSpeed || 0; // Default to 0 if not set yet
+                // obstacle.position.x += horizontalSpeed;
+
+                // // Keep obstacle within some horizontal bounds (optional)
+                // if (obstacle.position.x > maxHorizontalPosition) {
+                //     obstacle.position.x = maxHorizontalPosition;
+                //     obstacle.userData.horizontalSpeed *= -1; // Reverse direction
+                // } else if (obstacle.position.x < -maxHorizontalPosition) {
+                //     obstacle.position.x = -maxHorizontalPosition;
+                //     obstacle.userData.horizontalSpeed *= -1; // Reverse direction
+                // }
+
+                // Check for collision with PizzaBox
+                if (checkCollision(PizzaBox, obstacle)) {
+                    if (obstacle.geometry.type === 'TorusGeometry') {
+                        showMessage('Pizza Power increased!');
+                        pizzaPower++;
+                        pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
+                        createImplosion(obstacle); // Call createExplosion when torus collides
+                        //sausageCount++; // Add a sausage when torus collides
+                    } else {
+                        showMessage('Ouch - Collision Detected!');
+                        pizzaPower--;
+                        pizzaPowerCounter.innerText = `Pizza Power: ${pizzaPower}`;
+                        createGrindingSparks(obstacle); // Call createGrindingSparks when collision detected
+                    }
+                }
+            });
+
+            // Move hotDogs
+            hotDogs.forEach((hotDog, index) => {
+                hotDog.position.z -= 0.2;
+                if (hotDog.position.z < -35) {
+                    scene.remove(hotDog);
+                    hotDogs.splice(index, 1);
+                }
+
+                // Check for collision with obstacles
+                obstacles.forEach((obstacle, obstacleIndex) => {
+                    if (checkCollision(hotDog, obstacle)) {
+                        showMessage('HotDog Hit!');
+                        scene.remove(hotDog);
+                        hotDogs.splice(index, 1);
+
+                        DogeCoins++; // get one coin per hotdog hit
+                        DogeCoinCounter.innerText = `DogeCoins: ${DogeCoins}`; // Add this linece(index, 1);
+
+                        createCompleteExplosion(obstacle);
+                        scene.remove(obstacle);
+                        obstacles.splice(obstacleIndex, 1);
+                        // // Create explosion effect
+                        // const explosionPieces = createExplosion(obstacle);
+                        // scene.remove(obstacle);
+                        // obstacles.splice(obstacleIndex, 1);
+
+                        // // Animate explosion pieces
+                        // explosionPieces.forEach(piece => {
+                        //     const animatePiece = () => {
+                        //         piece.position.add(piece.userData.velocity);
+                        //         piece.rotation.x += 0.1;
+                        //         piece.rotation.y += 0.1;
+                        //         piece.rotation.z += 0.1;
+                        //         if (piece.position.distanceTo(obstacle.position) > 2) {
+                        //             scene.remove(piece);
+                        //         } else {
+                        //             requestAnimationFrame(animatePiece);
+                        //         }
+                        //     };
+                        //     animatePiece();
+                        // });
+                    }
+                });
+            });
+
+            // Move sausages with wobble effect
+            sausages.forEach((sausage, index) => {
+                sausage.position.z -= 0.2;
+                sausage.position.y += Math.sin(performance.now() * wobbleSpeed) * wobbleAmplitude;
+                if (sausage.position.z < -35) {
+                    scene.remove(sausage);
+                    sausages.splice(index, 1);
+                    sausageCounter.innerText = `Sausages: ${sausageCount}`;
+                }
+
+                // Check for collision with obstacles
+                obstacles.forEach((obstacle, obstacleIndex) => {
+                    if (checkCollision(sausage, obstacle)) {  
+                        showMessage('Sausage Slam!');
+                        scene.remove(sausage);
+                        sausages.splice(index, 1);
+                        DogeCoins += 10; // get some DogeCoins for slamming that sausage
+
+                        // Create explosion effect
+                        // add extra explosion sound for sausage
+                        explodeSynth.triggerAttackRelease("D3", "8n");
+                        const explosionPieces = createExplosion(obstacle);
+                        scene.remove(obstacle);
+                        obstacles.splice(obstacleIndex, 1);
+
+                        // Animate explosion pieces
+                        explosionPieces.forEach(piece => {
+                            const animatePiece = () => {
+                                piece.position.add(piece.userData.velocity);
+                                piece.rotation.x += 0.1;
+                                piece.rotation.y += 0.1;
+                                piece.rotation.z += 0.1;
+                                if (piece.position.distanceTo(obstacle.position) > 2) {
+                                    scene.remove(piece);
+                                } else {
+                                    requestAnimationFrame(animatePiece);
+                                }
+                            };
+                            animatePiece();
+                        });
+                    }
+                });
+            });
+
+            // Update FPS
+            const now = performance.now();
+            const delta = now - lastFrameTime;
+            lastFrameTime = now;
+            if (showFPS && now - lastFPSUpdateTime >= 1000) {
+                const fps = (1000 / delta).toFixed(2);
+                fpsCounter.innerText = `FPS: ${fps}`;
+                lastFPSUpdateTime = now;
+            }
+
+            // Update Info
+            if (showInfo) {
+                info.innerText = `PizzaBox Position: (${PizzaBox.position.x.toFixed(2)}, ${PizzaBox.position.y.toFixed(2)}, ${PizzaBox.position.z.toFixed(2)})\n`;
+                info.innerText += `Speed: ${speed.toFixed(2)}\n`;
+                info.innerText += `Obstacles: ${obstacles.length}\n`;
+                info.innerText += `HotDogs: ${hotDogs.length}\n`;
+                info.innerText += `Sausages: ${sausages.length}\n`;
+                info.innerText += `Pizza Power: ${pizzaPower}\n`;
+                info.innerText += `Sausage Count: ${sausageCount}\n`;
+                info.innerText += `DogeCoins: ${DogeCoins}\n`;
+                info.innerText += `Level: ${level}`;
+                // Performance or other debug info
+                info.innerHTML += `<br><b>Performance:</b><br>`;
+                info.innerHTML += `Draw Calls: ${renderer.info.render.calls}<br>`; // Example for Three.js renderer info
+                info.innerHTML += `Memory Usage: ${(window.performance.memory.usedJSHeapSize / (1024 * 1024)).toFixed(2)} MB<br>`; // If you want to show memory usage
+            }
+
+            // Upodate other stuff
+            DogeCoinCounter.innerText = `DogeCoins: ${DogeCoins}`; // Add this line
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
